@@ -13,6 +13,7 @@ import (
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/panel/sspanel"
+	"github.com/makeausername/xnode-agent/internal/secrets"
 	"github.com/makeausername/xnode-agent/internal/state"
 	"github.com/makeausername/xnode-agent/pkg/nodeapi"
 )
@@ -22,6 +23,7 @@ type App struct {
 	Config  config.LocalConfig
 	State   *state.Manager
 	Panel   panel.Client
+	Secrets secrets.Store
 	Logger  *slog.Logger
 }
 
@@ -51,6 +53,7 @@ func NewApp(version string) (*App, error) {
 		Config:  cfg,
 		State:   state.NewManager(state.Uninitialized),
 		Panel:   panelClient,
+		Secrets: secrets.NewFileStore(cfg.DataDir),
 		Logger:  logger,
 	}, nil
 }
@@ -111,7 +114,16 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		return a.degrade("get detect rules", err)
 	}
 
+	realitySecret, _, err := secrets.EnsureRealitySecret(a.Secrets)
+	if err != nil {
+		return a.degrade("ensure reality secret", err)
+	}
+
 	a.State.Set(state.Running)
+
+	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, nodeConfig.ConfigHash, realitySecret)); err != nil {
+		return a.degrade("report runtime", err)
+	}
 
 	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, nodeConfig.ConfigHash)); err != nil {
 		return a.degrade("report heartbeat", err)
@@ -129,6 +141,18 @@ func (a *App) SyncOnce(ctx context.Context) error {
 	)
 
 	return nil
+}
+
+func (a *App) runtimeReport(nodeID int64, configHash string, realitySecret secrets.RealitySecret) nodeapi.RuntimeReport {
+	return nodeapi.RuntimeReport{
+		NodeID:       nodeID,
+		AgentVersion: a.Version,
+		State:        string(a.State.Get()),
+		PublicKey:    realitySecret.PublicKey,
+		ShortIDs:     append([]string(nil), realitySecret.ShortIDs...),
+		Capabilities: []string{"vless", "reality", "vision"},
+		ConfigHash:   configHash,
+	}
 }
 
 func (a *App) heartbeatReport(nodeID int64, configHash string) nodeapi.HeartbeatReport {

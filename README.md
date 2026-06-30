@@ -6,14 +6,15 @@ Agent for `github.com/makeausername/xnode-agent`.
 
 - Step 1 completed: project skeleton
 - Step 3 completed: bootstrap wiring for local config and mock panel
-- Step 4 in progress: local Secret Vault file persistence
+- Step 4 completed: local Secret Vault file persistence
+- Step 5 completed: Reality key and shortId generation
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
 templates, local configuration defaults, state path helpers, mock panel mode,
-local Secret Vault file persistence, and a one-shot local sync check. It does
-not implement real panel API logic, real Xray runtime logic, Reality key
-generation, or real Docker installer logic.
+local Secret Vault file persistence, Reality key pair and shortId generation,
+and a one-shot local sync check. It does not implement real panel API logic,
+real Xray runtime logic, or real Docker installer logic.
 
 Target protocol:
 
@@ -36,6 +37,8 @@ Local mock check:
 $env:XNODE_MOCK_PANEL="true"
 $env:NODE_ID="1001"
 $env:NODE_DOMAIN="node1.example.com"
+$env:DATA_DIR=".xnode\data"
+$env:LOG_DIR=".xnode\logs"
 .\bin\xnode.exe --check
 ```
 

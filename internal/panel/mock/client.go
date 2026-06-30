@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"sync"
 
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/protocol/vless"
@@ -19,9 +20,12 @@ const (
 var _ panel.Client = (*Client)(nil)
 
 type Client struct {
-	config nodeapi.NodeConfig
-	users  []nodeapi.UserInfo
-	rules  []nodeapi.DetectRule
+	mu            sync.Mutex
+	config        nodeapi.NodeConfig
+	users         []nodeapi.UserInfo
+	rules         []nodeapi.DetectRule
+	runtimeReport nodeapi.RuntimeReport
+	hasRuntime    bool
 }
 
 func NewClient() *Client {
@@ -89,6 +93,14 @@ func (c *Client) GetDetectRules(ctx context.Context, etag string) ([]nodeapi.Det
 }
 
 func (c *Client) ReportRuntime(ctx context.Context, report nodeapi.RuntimeReport) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report.ShortIDs = append([]string(nil), report.ShortIDs...)
+	report.Capabilities = append([]string(nil), report.Capabilities...)
+	c.runtimeReport = report
+	c.hasRuntime = true
+
 	return nil
 }
 
@@ -102,4 +114,15 @@ func (c *Client) ReportOnline(ctx context.Context, report nodeapi.OnlineReport) 
 
 func (c *Client) ReportHeartbeat(ctx context.Context, report nodeapi.HeartbeatReport) error {
 	return nil
+}
+
+func (c *Client) LastRuntimeReport() (nodeapi.RuntimeReport, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report := c.runtimeReport
+	report.ShortIDs = append([]string(nil), report.ShortIDs...)
+	report.Capabilities = append([]string(nil), report.Capabilities...)
+
+	return report, c.hasRuntime
 }

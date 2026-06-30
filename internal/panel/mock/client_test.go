@@ -56,3 +56,30 @@ func TestReportMethodsReturnNil(t *testing.T) {
 		t.Fatalf("ReportHeartbeat() error = %v", err)
 	}
 }
+
+func TestReportRuntimeAcceptsRealityPublicFields(t *testing.T) {
+	client := NewClient()
+	report := nodeapi.RuntimeReport{
+		NodeID:       1001,
+		AgentVersion: "test-version",
+		State:        "running",
+		PublicKey:    "public-key",
+		ShortIDs:     []string{"0123456789abcdef"},
+		Capabilities: []string{"vless", "reality", "vision"},
+	}
+
+	if err := client.ReportRuntime(context.Background(), report); err != nil {
+		t.Fatalf("ReportRuntime() error = %v", err)
+	}
+
+	got, ok := client.LastRuntimeReport()
+	if !ok {
+		t.Fatal("LastRuntimeReport() ok = false, want true")
+	}
+	if got.PublicKey != report.PublicKey {
+		t.Fatalf("PublicKey = %q, want %q", got.PublicKey, report.PublicKey)
+	}
+	if len(got.ShortIDs) != 1 || got.ShortIDs[0] != report.ShortIDs[0] {
+		t.Fatalf("ShortIDs = %#v, want %#v", got.ShortIDs, report.ShortIDs)
+	}
+}
