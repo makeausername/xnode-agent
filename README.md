@@ -19,6 +19,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 14 completed: reporter framework for traffic, online IP, and detect-log reports
 - Step 15 completed: access log parser for online IP extraction
 - Step 16 completed: detect rules and audit routing skeleton
+- Step 17 completed: installer and Docker Compose deployment templates
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -43,7 +44,9 @@ framework and renders supported `protocol` and `domain_regex` rules into Xray
 routing block rules, skipping invalid rules instead of failing local config
 render. Real panel calls are implemented at the client layer and tested with
 `httptest`, but the local check flow still uses the mock panel. It does not
-start Xray from the local check flow or implement real Docker installer logic.
+start Xray from the local check flow. Step 17 adds installer and Docker Compose
+templates for future Linux server deployment, but real Docker execution remains
+deferred.
 
 Target protocol:
 
@@ -89,7 +92,9 @@ The local mock check now creates:
 
 The `.xnode` runtime directory is ignored by git and must not be committed.
 
-Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 10.
+Docker templates live under `deploy/`, and the Linux install script template
+lives under `scripts/install.sh.tmpl`. They are static deployment skeletons for
+later use.
 
 Local Windows development remains lightweight: `--check` renders
 `.xnode\data\xray.json` only, uses the mock panel, and still does not require a
@@ -127,3 +132,7 @@ Supported rule types are `protocol` and `domain_regex`. The Xray renderer always
 keeps the default bittorrent block rule and appends valid detect rules to
 `routing.rules`; invalid detect rules are skipped and real detect-log matching
 is still deferred.
+
+Step 17 adds `internal/installer` rendering helpers plus Docker Compose and
+install script templates. Local Windows development still does not require
+Docker, and real Docker testing will happen later on a Linux server.

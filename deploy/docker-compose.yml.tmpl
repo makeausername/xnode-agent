@@ -1,6 +1,6 @@
 services:
   xnode:
-    image: ghcr.io/makeausername/xnode-agent:latest
+    image: {{ .Image }}
     container_name: xnode
     network_mode: host
     restart: unless-stopped
@@ -8,8 +8,11 @@ services:
       - ./data:/var/lib/xnode
       - ./logs:/var/log/xnode
     environment:
-      - PANEL_URL
-      - NODE_ID
-      - NODE_DOMAIN
-      - ENROLL_TOKEN
-      - TZ=Asia/Shanghai
+      PANEL_URL: "${PANEL_URL}"
+      NODE_ID: "${NODE_ID}"
+      NODE_DOMAIN: "${NODE_DOMAIN}"
+      ENROLL_TOKEN: "${ENROLL_TOKEN}"
+      DATA_DIR: "/var/lib/xnode"
+      LOG_DIR: "/var/log/xnode"
+      XRAY_BIN: "/usr/local/bin/xray"
+      TZ: "{{ .Timezone }}"

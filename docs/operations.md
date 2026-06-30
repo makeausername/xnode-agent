@@ -1,6 +1,6 @@
 # Operations
 
-This repository is currently at Step 16. It can render a local Xray JSON
+This repository is currently at Step 17. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
 process manager skeleton, centralizes the VLESS inbound builder in
 `internal/protocol/vless`, and has a cancellable agent loop framework for
@@ -9,7 +9,8 @@ and config/users hashes to skip runtime apply work when nothing changed. Step
 14 adds a reporter framework for traffic, online IP, and detect-log payloads,
 and Step 15 adds tolerant access log parsing for online IP extraction, but does
 not start new reporting loops. Step 16 adds detect-rule validation and routing
-render for supported rules.
+render for supported rules. Step 17 adds installer and Docker Compose templates
+for later Linux server rollout.
 
 Local Windows verification:
 
@@ -21,7 +22,10 @@ go build -o .\bin\xnode.exe .\cmd\xnode
 .\bin\xnode.exe --check
 ```
 
-The Dockerfile and compose file under `deploy/` are templates for later deployment work. They do not require an Xray binary yet, and Docker is not required for local Windows development.
+The Dockerfile, compose template, and install script template are deployment
+previews for later Linux server work. They do not require Docker on Windows,
+do not start Xray in local `--check`, and are not a completed production
+installer yet.
 
 The placeholder smoke test runs the agent version command:
 
@@ -127,3 +131,25 @@ This is only the routing skeleton. Real detect-log matching, traffic
 inspection, long-running audit loops, production panel rollout behavior, Docker
 behavior, and real Xray startup remain deferred. The local `--check` command
 still performs one mock-safe sync and exits.
+
+## Step 17 deployment template preview
+
+Step 17 adds static rendering helpers in `internal/installer`, a Docker Compose
+template under `deploy/`, and a Linux install script template under `scripts/`.
+The templates target `/opt/xnode` on a future server and mount local `data/`
+and `logs/` directories into the container.
+
+After a future Linux deployment, the expected operator commands are:
+
+```sh
+cd /opt/xnode
+docker compose ps
+docker compose logs -f xnode
+docker compose restart xnode
+cat data/runtime.json
+cat logs/xray.log
+tail -f logs/access.log
+```
+
+Local Windows development still does not require Docker. Real Docker execution
+and real panel rollout tests remain deferred to a later Linux server step.
