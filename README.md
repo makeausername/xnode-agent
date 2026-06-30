@@ -43,10 +43,11 @@ payloads from extracted source addresses. Step 16 adds a safe detect-rule
 framework and renders supported `protocol` and `domain_regex` rules into Xray
 routing block rules, skipping invalid rules instead of failing local config
 render. Real panel calls are implemented at the client layer and tested with
-`httptest`, but the local check flow still uses the mock panel. It does not
-start Xray from the local check flow. Step 17 adds installer and Docker Compose
-templates for future Linux server deployment, but real Docker execution remains
-deferred.
+`httptest`; the local check flow can use either mock mode or a reachable
+SSPanel-compatible `/node/api/v1` stub depending on `XNODE_MOCK_PANEL`. It does
+not start Xray from the local check flow. Step 17 adds installer and Docker
+Compose templates for future Linux server deployment, but real Docker execution
+remains deferred.
 
 Target protocol:
 
@@ -74,6 +75,30 @@ $env:LOG_DIR=".xnode\logs"
 .\bin\xnode.exe --check
 ```
 
+## Real panel stub check
+
+Use this flow when a reachable SSPanel-compatible `/node/api/v1` stub is
+available and you want to exercise real HTTP enrollment and sync without
+starting Xray:
+
+```powershell
+$env:XNODE_MOCK_PANEL="false"
+$env:PANEL_URL="https://panel.example.com"
+$env:NODE_ID="1001"
+$env:NODE_DOMAIN="node1.example.com"
+$env:ENROLL_TOKEN="xne_xxx"
+$env:DATA_DIR=".xnode-real\data"
+$env:LOG_DIR=".xnode-real\logs"
+.\bin\xnode.exe --check
+```
+
+`ENROLL_TOKEN` is used only once when `DATA_DIR\token` is missing. The panel
+returns a `node_token`, and the agent saves it to `DATA_DIR\token` for later
+Node API calls. `reality.json` and `xray.json` are generated locally under
+`DATA_DIR`. The Reality `private_key` stays local and is never sent to the
+panel; runtime reports send only the public Reality fields. `--check` performs
+one sync and render pass, then exits without starting Xray.
+
 One-shot sync without the check label is also available:
 
 ```powershell
@@ -96,9 +121,10 @@ Docker templates live under `deploy/`, and the Linux install script template
 lives under `scripts/install.sh.tmpl`. They are static deployment skeletons for
 later use.
 
-Local Windows development remains lightweight: `--check` renders
-`.xnode\data\xray.json` only, uses the mock panel, and still does not require a
-real panel request, a real Xray binary, or Docker.
+Local Windows development remains lightweight: mock `--check` renders
+`.xnode\data\xray.json` without a real panel request, a real Xray binary, or
+Docker. Real panel stub `--check` makes Node API HTTP requests but still does
+not start Xray or Docker.
 
 Step 11 wires real-panel enrollment into bootstrap. In real panel mode the agent
 loads `.xnode\data\token` or enrolls once with `ENROLL_TOKEN`, saves the returned

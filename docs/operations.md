@@ -19,6 +19,12 @@ go test ./...
 go vet ./...
 go build -o .\bin\xnode.exe .\cmd\xnode
 .\bin\xnode.exe --version
+
+$env:XNODE_MOCK_PANEL="true"
+$env:NODE_ID="1001"
+$env:NODE_DOMAIN="node1.example.com"
+$env:DATA_DIR=".xnode\data"
+$env:LOG_DIR=".xnode\logs"
 .\bin\xnode.exe --check
 ```
 
@@ -26,6 +32,44 @@ The Dockerfile, compose template, and install script template are deployment
 previews for later Linux server work. They do not require Docker on Windows,
 do not start Xray in local `--check`, and are not a completed production
 installer yet.
+
+## Real panel stub check
+
+Use this flow when a reachable SSPanel-compatible `/node/api/v1` stub is
+available and you want `--check` to exercise real HTTP enrollment and sync:
+
+```powershell
+$env:XNODE_MOCK_PANEL="false"
+$env:PANEL_URL="https://panel.example.com"
+$env:NODE_ID="1001"
+$env:NODE_DOMAIN="node1.example.com"
+$env:ENROLL_TOKEN="xne_xxx"
+$env:DATA_DIR=".xnode-real\data"
+$env:LOG_DIR=".xnode-real\logs"
+.\bin\xnode.exe --check
+```
+
+`ENROLL_TOKEN` is used only once when `DATA_DIR\token` is missing. After a
+successful enroll response, the returned `node_token` is saved to
+`DATA_DIR\token` and used for later Node API calls. The check generates
+`reality.json` and `xray.json` locally. The Reality `private_key` never goes to
+the panel; runtime reports include only public Reality fields. `--check` does
+not start Xray, Docker, reporter loops, or any long-running scheduler.
+
+Troubleshooting:
+
+- `401 AUTH_INVALID_TOKEN`: the enroll token may be wrong, expired, already
+  consumed, or the saved `DATA_DIR\token` may be stale. Do not paste
+  `ENROLL_TOKEN` or `node_token` into logs when debugging.
+- Missing `PANEL_URL`: set `PANEL_URL` to an absolute `http://` or `https://`
+  URL for the panel stub, such as `https://panel.example.com`.
+- Missing `ENROLL_TOKEN`: if `DATA_DIR\token` does not exist yet, set
+  `ENROLL_TOKEN`. Once `node_token` is saved, the enroll token is no longer
+  needed for that data directory.
+- Domain mismatch: make sure `NODE_DOMAIN` matches the node/domain expected by
+  the panel stub and by the config returned from `/node/api/v1/config`.
+- Enroll token already used: keep using the saved `DATA_DIR\token`, or issue a
+  fresh enroll token and use a fresh token file for a new enrollment.
 
 The placeholder smoke test runs the agent version command:
 
@@ -130,7 +174,7 @@ not fatal. The renderer still always includes the default bittorrent block rule.
 This is only the routing skeleton. Real detect-log matching, traffic
 inspection, long-running audit loops, production panel rollout behavior, Docker
 behavior, and real Xray startup remain deferred. The local `--check` command
-still performs one mock-safe sync and exits.
+still performs one sync and exits.
 
 ## Step 17 deployment template preview
 
@@ -152,4 +196,5 @@ tail -f logs/access.log
 ```
 
 Local Windows development still does not require Docker. Real Docker execution
-and real panel rollout tests remain deferred to a later Linux server step.
+and full production panel rollout tests remain deferred to a later Linux server
+step.

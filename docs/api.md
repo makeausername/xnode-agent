@@ -142,5 +142,6 @@ Valid `protocol` rules render as Xray routing protocol block rules. Valid
 prefix. Invalid or unknown rules are skipped by the local renderer and are not
 fatal. Real detect-log matching and traffic inspection remain deferred.
 
-Repository verification uses mock panel mode. Do not call a real panel, start
-Xray, or run Docker for the current local check flow.
+Automated repository verification uses mock panel mode. The optional real panel
+stub check is documented in `README.md` and `docs/operations.md`; it still does
+not start Xray or run Docker.

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -106,8 +107,35 @@ func (c LocalConfig) Validate() error {
 	if c.NodeID < 0 {
 		return errors.New("NODE_ID must not be negative")
 	}
+	if !c.MockPanel {
+		if strings.TrimSpace(c.PanelURL) == "" {
+			return errors.New("PANEL_URL is required when XNODE_MOCK_PANEL is false")
+		}
+		if err := validatePanelURL(c.PanelURL); err != nil {
+			return err
+		}
+		if c.NodeID == 0 {
+			return errors.New("NODE_ID is required and must be positive when XNODE_MOCK_PANEL is false")
+		}
+		if strings.TrimSpace(c.NodeDomain) == "" {
+			return errors.New("NODE_DOMAIN is required when XNODE_MOCK_PANEL is false")
+		}
+	}
 
 	return nil
+}
+
+func validatePanelURL(value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return errors.New("PANEL_URL must be an absolute http or https URL when XNODE_MOCK_PANEL is false")
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+		return nil
+	default:
+		return errors.New("PANEL_URL must be an absolute http or https URL when XNODE_MOCK_PANEL is false")
+	}
 }
 
 func envString(key string, fallback string) string {

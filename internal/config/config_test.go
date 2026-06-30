@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaultConfigStatePaths(t *testing.T) {
 	cfg := DefaultConfig()
@@ -80,6 +83,58 @@ func TestLoadFromEnvInvalidNodeID(t *testing.T) {
 	_, err := LoadFromEnv()
 	if err == nil {
 		t.Fatal("LoadFromEnv() error = nil, want NODE_ID parse error")
+	}
+}
+
+func TestLoadFromEnvRealPanelRequiresPanelConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{
+			name: "missing panel url",
+			env:  map[string]string{"PANEL_URL": ""},
+			want: "PANEL_URL is required",
+		},
+		{
+			name: "relative panel url",
+			env:  map[string]string{"PANEL_URL": "panel.example.com"},
+			want: "absolute http or https URL",
+		},
+		{
+			name: "missing node id",
+			env:  map[string]string{"NODE_ID": ""},
+			want: "NODE_ID is required",
+		},
+		{
+			name: "missing node domain",
+			env:  map[string]string{"NODE_DOMAIN": ""},
+			want: "NODE_DOMAIN is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("XNODE_MOCK_PANEL", "false")
+			t.Setenv("PANEL_URL", "https://panel.example.com")
+			t.Setenv("NODE_ID", "1001")
+			t.Setenv("NODE_DOMAIN", "node1.example.com")
+			t.Setenv("DATA_DIR", t.TempDir())
+			t.Setenv("LOG_DIR", t.TempDir())
+
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+
+			_, err := LoadFromEnv()
+			if err == nil {
+				t.Fatal("LoadFromEnv() error = nil, want real panel config error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("LoadFromEnv() error = %q, want %q", err.Error(), tt.want)
+			}
+		})
 	}
 }
 
