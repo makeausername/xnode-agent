@@ -14,5 +14,6 @@ type Client interface {
 	ReportRuntime(ctx context.Context, report nodeapi.RuntimeReport) error
 	ReportTraffic(ctx context.Context, report nodeapi.TrafficReport) error
 	ReportOnline(ctx context.Context, report nodeapi.OnlineReport) error
+	ReportDetectLog(ctx context.Context, report nodeapi.DetectLogReport) error
 	ReportHeartbeat(ctx context.Context, report nodeapi.HeartbeatReport) error
 }

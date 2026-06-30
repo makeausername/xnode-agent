@@ -121,9 +121,27 @@ type TrafficReport struct {
 }
 
 type OnlineReport struct {
-	ReportID string     `json:"report_id"`
-	NodeID   int64      `json:"node_id"`
-	Data     []OnlineIP `json:"data"`
+	ReportID    string     `json:"report_id"`
+	NodeID      int64      `json:"node_id"`
+	PeriodStart int64      `json:"period_start"`
+	PeriodEnd   int64      `json:"period_end"`
+	Data        []OnlineIP `json:"data"`
+}
+
+type DetectLogItem struct {
+	UserID    int64  `json:"user_id"`
+	RuleID    int64  `json:"rule_id"`
+	IP        string `json:"ip"`
+	Target    string `json:"target"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+type DetectLogReport struct {
+	ReportID    string          `json:"report_id"`
+	NodeID      int64           `json:"node_id"`
+	PeriodStart int64           `json:"period_start"`
+	PeriodEnd   int64           `json:"period_end"`
+	Data        []DetectLogItem `json:"data"`
 }
 
 type HeartbeatReport struct {

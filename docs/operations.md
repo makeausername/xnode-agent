@@ -1,11 +1,13 @@
 # Operations
 
-This repository is currently at Step 13. It can render a local Xray JSON
+This repository is currently at Step 14. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
 process manager skeleton, centralizes the VLESS inbound builder in
 `internal/protocol/vless`, and has a cancellable agent loop framework for
 heartbeat and sync scheduling. The sync path now uses users ETag/cache metadata
-and config/users hashes to skip runtime apply work when nothing changed.
+and config/users hashes to skip runtime apply work when nothing changed. Step
+14 adds a reporter framework for traffic, online IP, and detect-log payloads,
+but does not start new reporting loops.
 
 Local Windows verification:
 
@@ -81,3 +83,18 @@ Unchanged users and unchanged node config should not trigger
 `Runtime.ApplyPlan`, so `xray.json` is not rewritten just because a sync loop
 ran. The agent still applies the runtime plan if the config hash changed, the
 users hash changed, or `xray.json` is missing.
+
+## Step 14 reporter framework
+
+Step 14 adds `internal/reporter`, deterministic `report_id` generation, and
+panel-client support for:
+
+- `POST /node/api/v1/traffic`
+- `POST /node/api/v1/online`
+- `POST /node/api/v1/detect-log`
+
+The framework can build and send these reports in tests and mock-safe local
+flows. Real Xray stats parsing, real access log parsing, detect-rule audit
+matching, Docker behavior, production panel rollout, and long-running reporter
+schedulers come later. The local `--check` command still performs one sync and
+exits; it does not start Xray, Docker, or reporter loops.

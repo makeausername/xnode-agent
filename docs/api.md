@@ -1,6 +1,6 @@
 # API
 
-This repository is currently at Step 11.
+This repository is currently at Step 14.
 
 The `pkg/nodeapi` package contains DTOs for the SSPanel Node API v1 contract. The
 `internal/panel/sspanel` package implements the HTTP client layer for these
@@ -22,9 +22,76 @@ The client sends `Accept: application/json` on all requests. Enrollment uses
 | POST | `/node/api/v1/runtime` | Report runtime state and public REALITY fields. |
 | POST | `/node/api/v1/traffic` | Report user traffic counters. |
 | POST | `/node/api/v1/online` | Report online user IP state. |
+| POST | `/node/api/v1/detect-log` | Report detect-rule log matches. |
 | POST | `/node/api/v1/heartbeat` | Report lightweight node heartbeat state. |
 
 `POST` requests use `Content-Type: application/json`.
+
+## Report endpoints
+
+Traffic, online IP, and detect-log report payloads include a required
+`report_id` for idempotency. The Step 14 agent builds deterministic IDs with
+this format:
+
+```text
+<node_id>-<period_start>-<kind>
+```
+
+For example, traffic for node `1001` and period start `1760000000` uses
+`1001-1760000000-traffic`.
+
+`POST /node/api/v1/traffic` sends:
+
+```json
+{
+  "report_id": "1001-1760000000-traffic",
+  "node_id": 1001,
+  "period_start": 1760000000,
+  "period_end": 1760000060,
+  "data": [
+    { "user_id": 1, "u": 100, "d": 200 }
+  ]
+}
+```
+
+`POST /node/api/v1/online` sends:
+
+```json
+{
+  "report_id": "1001-1760000000-online",
+  "node_id": 1001,
+  "period_start": 1760000000,
+  "period_end": 1760000060,
+  "data": [
+    { "user_id": 1, "ip": "203.0.113.10" },
+    { "user_id": 2, "ip": "2001:db8::1" }
+  ]
+}
+```
+
+`POST /node/api/v1/detect-log` sends:
+
+```json
+{
+  "report_id": "1001-1760000000-detect-log",
+  "node_id": 1001,
+  "period_start": 1760000000,
+  "period_end": 1760000060,
+  "data": [
+    {
+      "user_id": 1,
+      "rule_id": 99,
+      "ip": "203.0.113.10",
+      "target": "example.com:443",
+      "created_at": 1760000030
+    }
+  ]
+}
+```
+
+The current reporter framework can build and send these payloads through the
+panel client. Real Xray stats parsing, access log parsing, audit matching, and
+production scheduling are intentionally deferred.
 
 ## Enrollment flow
 

@@ -16,6 +16,7 @@ import (
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/panel/sspanel"
+	"github.com/makeausername/xnode-agent/internal/reporter"
 	"github.com/makeausername/xnode-agent/internal/runtime"
 	"github.com/makeausername/xnode-agent/internal/runtime/xray"
 	"github.com/makeausername/xnode-agent/internal/secrets"
@@ -24,13 +25,14 @@ import (
 )
 
 type App struct {
-	Version string
-	Config  config.LocalConfig
-	State   *state.Manager
-	Panel   panel.Client
-	Secrets secrets.Store
-	Runtime runtime.Runtime
-	Logger  *slog.Logger
+	Version  string
+	Config   config.LocalConfig
+	State    *state.Manager
+	Panel    panel.Client
+	Secrets  secrets.Store
+	Runtime  runtime.Runtime
+	Reporter *reporter.Manager
+	Logger   *slog.Logger
 
 	syncMu sync.Mutex
 	mu     sync.RWMutex
@@ -67,16 +69,20 @@ func NewApp(version string) (*App, error) {
 		panelClient = sspanel.NewClient(cfg.PanelURL, "")
 	}
 
+	runtimeClient := xray.NewRuntime(cfg.XrayBinPath, cfg.StatePaths().XrayJSON)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	reporterManager := reporter.NewManager(cfg.NodeID, panelClient, runtimeClient)
+	reporterManager.Logger = logger
 
 	return &App{
-		Version: version,
-		Config:  cfg,
-		State:   state.NewManager(state.Uninitialized),
-		Panel:   panelClient,
-		Secrets: secrets.NewFileStore(cfg.DataDir),
-		Runtime: xray.NewRuntime(cfg.XrayBinPath, cfg.StatePaths().XrayJSON),
-		Logger:  logger,
+		Version:  version,
+		Config:   cfg,
+		State:    state.NewManager(state.Uninitialized),
+		Panel:    panelClient,
+		Secrets:  secrets.NewFileStore(cfg.DataDir),
+		Runtime:  runtimeClient,
+		Reporter: reporterManager,
+		Logger:   logger,
 	}, nil
 }
 

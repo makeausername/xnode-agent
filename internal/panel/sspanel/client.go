@@ -24,6 +24,7 @@ const (
 	runtimePath     = "/node/api/v1/runtime"
 	trafficPath     = "/node/api/v1/traffic"
 	onlinePath      = "/node/api/v1/online"
+	detectLogPath   = "/node/api/v1/detect-log"
 	heartbeatPath   = "/node/api/v1/heartbeat"
 )
 
@@ -85,6 +86,10 @@ func (c *Client) ReportTraffic(ctx context.Context, report nodeapi.TrafficReport
 
 func (c *Client) ReportOnline(ctx context.Context, report nodeapi.OnlineReport) error {
 	return postJSONNoData(ctx, c, onlinePath, report)
+}
+
+func (c *Client) ReportDetectLog(ctx context.Context, report nodeapi.DetectLogReport) error {
+	return postJSONNoData(ctx, c, detectLogPath, report)
 }
 
 func (c *Client) ReportHeartbeat(ctx context.Context, report nodeapi.HeartbeatReport) error {

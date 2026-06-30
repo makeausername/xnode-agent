@@ -16,6 +16,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 11 completed: agent enrollment flow and node_token persistence
 - Step 12 completed: agent loop framework, heartbeat scheduler, and context-aware graceful shutdown
 - Step 13 completed: ETag/hash-based user sync optimization and no-op runtime apply
+- Step 14 completed: reporter framework for traffic, online IP, and detect-log reports
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -24,16 +25,19 @@ local Secret Vault file persistence, Reality key pair and shortId generation,
 an Xray JSON config renderer, local agent state files, a users cache, runtime
 metadata, a process manager skeleton for an external Xray process, and a
 centralized VLESS + REALITY + Vision inbound builder, a SSPanel Node API v1 HTTP
-client layer, a one-shot local sync check, real-mode enrollment, and local
-`node_token` persistence. Step 12 adds cancellable loop helpers for config sync,
-user sync, and heartbeat reporting; `Run` performs an initial sync, starts a
+client layer, a one-shot local sync check, real-mode enrollment, local
+`node_token` persistence, and a reporter framework for traffic, online IP, and
+detect-log payloads. Step 12 adds cancellable loop helpers for config sync, user
+sync, and heartbeat reporting; `Run` performs an initial sync, starts a
 heartbeat scheduler and one conservative sync scheduler, and exits cleanly on
 context cancellation. Step 13 adds ETag/hash-based users sync, persists the
 users ETag in `users.cache.json`, and skips `Runtime.ApplyPlan` when the node
-config, users hash, and existing `xray.json` are unchanged. Real panel calls are
-implemented at the client layer and tested with `httptest`, but the local check
-flow still uses the mock panel. It does not start Xray from the local check flow
-or implement real Docker installer logic.
+config, users hash, and existing `xray.json` are unchanged. Step 14 adds
+deterministic `report_id` generation and safe report builders, but no real
+traffic collection yet. Real panel calls are implemented at the client layer and
+tested with `httptest`, but the local check flow still uses the mock panel. It
+does not start Xray from the local check flow or implement real Docker installer
+logic.
 
 Target protocol:
 
@@ -100,3 +104,9 @@ response, compares users/config hashes against `runtime.json`, and avoids
 rewriting `xray.json` when nothing changed. Real Xray stats, traffic reporting,
 online IP parsing, and production panel rollout behavior are deferred to later
 steps.
+
+Step 14 adds the reporter framework for traffic, online IP, and detect-log
+reports. It can build deterministic idempotency IDs such as
+`1001-1760000000-traffic` and send mock-safe payloads through the panel client.
+It does not implement real Xray stats parsing, real access log parsing, or real
+traffic collection yet.

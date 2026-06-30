@@ -138,6 +138,9 @@ func (a *App) setLastSyncSnapshot(nodeID int64, configHash string, reportConfig 
 	a.lastNodeID = nodeID
 	a.lastConfigHash = configHash
 	a.lastReportConfig = reportConfig
+	if a.Reporter != nil {
+		a.Reporter.NodeID = nodeID
+	}
 }
 
 func (a *App) lastSyncSnapshot() (int64, string, nodeapi.ReportConfig) {

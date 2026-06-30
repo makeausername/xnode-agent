@@ -75,6 +75,9 @@ func TestReportMethodsReturnNil(t *testing.T) {
 	if err := client.ReportOnline(ctx, nodeapi.OnlineReport{}); err != nil {
 		t.Fatalf("ReportOnline() error = %v", err)
 	}
+	if err := client.ReportDetectLog(ctx, nodeapi.DetectLogReport{}); err != nil {
+		t.Fatalf("ReportDetectLog() error = %v", err)
+	}
 	if err := client.ReportHeartbeat(ctx, nodeapi.HeartbeatReport{}); err != nil {
 		t.Fatalf("ReportHeartbeat() error = %v", err)
 	}

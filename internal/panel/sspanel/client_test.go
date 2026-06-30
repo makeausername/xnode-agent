@@ -3,6 +3,7 @@ package sspanel
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -274,6 +275,75 @@ func TestReportHeartbeatSendsStateAndConfigHash(t *testing.T) {
 		ConfigHash:   "config-hash",
 	}); err != nil {
 		t.Fatalf("ReportHeartbeat() error = %v", err)
+	}
+}
+
+func TestReportDetectLogSendsAuthorizationAndNoPrivateKey(t *testing.T) {
+	const token = "secret-node-token"
+	var rawBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != detectLogPath {
+			t.Fatalf("path = %q, want %q", r.URL.Path, detectLogPath)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %q, want %q", r.Method, http.MethodPost)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+			t.Fatalf("Authorization = %q, want bearer token", got)
+		}
+
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll request body error = %v", err)
+		}
+		rawBody = string(data)
+
+		var report nodeapi.DetectLogReport
+		if err := json.Unmarshal(data, &report); err != nil {
+			t.Fatalf("Unmarshal request body error = %v", err)
+		}
+		if report.ReportID != "1001-1760000000-detect-log" {
+			t.Fatalf("ReportID = %q, want deterministic detect-log ID", report.ReportID)
+		}
+		if report.NodeID != 1001 {
+			t.Fatalf("NodeID = %d, want 1001", report.NodeID)
+		}
+		if report.PeriodStart != 1760000000 || report.PeriodEnd != 1760000060 {
+			t.Fatalf("period = %d-%d, want 1760000000-1760000060", report.PeriodStart, report.PeriodEnd)
+		}
+		if len(report.Data) != 1 {
+			t.Fatalf("len(Data) = %d, want 1", len(report.Data))
+		}
+		if report.Data[0].Target != "example.com:443" {
+			t.Fatalf("Target = %q, want example.com:443", report.Data[0].Target)
+		}
+
+		writeAPIResponse(t, w, http.StatusOK, json.RawMessage(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClientWithHTTPClient(server.URL, token, server.Client())
+	err := client.ReportDetectLog(context.Background(), nodeapi.DetectLogReport{
+		ReportID:    "1001-1760000000-detect-log",
+		NodeID:      1001,
+		PeriodStart: 1760000000,
+		PeriodEnd:   1760000060,
+		Data: []nodeapi.DetectLogItem{
+			{
+				UserID:    1,
+				RuleID:    99,
+				IP:        "203.0.113.10",
+				Target:    "example.com:443",
+				CreatedAt: 1760000030,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReportDetectLog() error = %v", err)
+	}
+	if strings.Contains(rawBody, "private_key") {
+		t.Fatalf("detect-log report body contains private_key: %s", rawBody)
 	}
 }
 

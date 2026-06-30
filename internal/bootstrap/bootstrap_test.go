@@ -39,6 +39,12 @@ func TestNewAppWithMockPanel(t *testing.T) {
 	if app.Panel == nil {
 		t.Fatal("Panel = nil")
 	}
+	if app.Reporter == nil {
+		t.Fatal("Reporter = nil")
+	}
+	if app.Reporter.NodeID != 1001 {
+		t.Fatalf("Reporter.NodeID = %d, want 1001", app.Reporter.NodeID)
+	}
 }
 
 func TestSyncOnceWithMockPanel(t *testing.T) {
@@ -670,6 +676,10 @@ func (p *fakeEnrollPanel) ReportTraffic(ctx context.Context, report nodeapi.Traf
 }
 
 func (p *fakeEnrollPanel) ReportOnline(ctx context.Context, report nodeapi.OnlineReport) error {
+	return nil
+}
+
+func (p *fakeEnrollPanel) ReportDetectLog(ctx context.Context, report nodeapi.DetectLogReport) error {
 	return nil
 }
 

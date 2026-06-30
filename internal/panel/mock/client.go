@@ -25,10 +25,19 @@ type Client struct {
 	users            []nodeapi.UserInfo
 	rules            []nodeapi.DetectRule
 	runtimeReport    nodeapi.RuntimeReport
+	trafficReport    nodeapi.TrafficReport
+	onlineReport     nodeapi.OnlineReport
+	detectLogReport  nodeapi.DetectLogReport
 	heartbeatReport  nodeapi.HeartbeatReport
 	hasRuntime       bool
+	hasTraffic       bool
+	hasOnline        bool
+	hasDetectLog     bool
 	hasHeartbeat     bool
 	runtimeReports   int
+	trafficReports   int
+	onlineReports    int
+	detectLogReports int
 	heartbeatReports int
 }
 
@@ -125,10 +134,38 @@ func (c *Client) ReportRuntime(ctx context.Context, report nodeapi.RuntimeReport
 }
 
 func (c *Client) ReportTraffic(ctx context.Context, report nodeapi.TrafficReport) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report.Data = append([]nodeapi.UserTraffic(nil), report.Data...)
+	c.trafficReport = report
+	c.hasTraffic = true
+	c.trafficReports++
+
 	return nil
 }
 
 func (c *Client) ReportOnline(ctx context.Context, report nodeapi.OnlineReport) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report.Data = append([]nodeapi.OnlineIP(nil), report.Data...)
+	c.onlineReport = report
+	c.hasOnline = true
+	c.onlineReports++
+
+	return nil
+}
+
+func (c *Client) ReportDetectLog(ctx context.Context, report nodeapi.DetectLogReport) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report.Data = append([]nodeapi.DetectLogItem(nil), report.Data...)
+	c.detectLogReport = report
+	c.hasDetectLog = true
+	c.detectLogReports++
+
 	return nil
 }
 
@@ -161,11 +198,62 @@ func (c *Client) LastHeartbeatReport() (nodeapi.HeartbeatReport, bool) {
 	return c.heartbeatReport, c.hasHeartbeat
 }
 
+func (c *Client) LastTrafficReport() (nodeapi.TrafficReport, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report := c.trafficReport
+	report.Data = append([]nodeapi.UserTraffic(nil), report.Data...)
+
+	return report, c.hasTraffic
+}
+
+func (c *Client) LastOnlineReport() (nodeapi.OnlineReport, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report := c.onlineReport
+	report.Data = append([]nodeapi.OnlineIP(nil), report.Data...)
+
+	return report, c.hasOnline
+}
+
+func (c *Client) LastDetectLogReport() (nodeapi.DetectLogReport, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	report := c.detectLogReport
+	report.Data = append([]nodeapi.DetectLogItem(nil), report.Data...)
+
+	return report, c.hasDetectLog
+}
+
 func (c *Client) RuntimeReportCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	return c.runtimeReports
+}
+
+func (c *Client) TrafficReportCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.trafficReports
+}
+
+func (c *Client) OnlineReportCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.onlineReports
+}
+
+func (c *Client) DetectLogReportCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.detectLogReports
 }
 
 func (c *Client) HeartbeatReportCount() int {
