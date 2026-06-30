@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/makeausername/xnode-agent/internal/config"
+	"github.com/makeausername/xnode-agent/internal/localstate"
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/panel/sspanel"
@@ -28,6 +29,8 @@ type App struct {
 	Secrets secrets.Store
 	Runtime runtime.Runtime
 	Logger  *slog.Logger
+
+	lastConfigHash string
 }
 
 func NewApp(version string) (*App, error) {
@@ -91,7 +94,7 @@ func (a *App) Run(ctx context.Context) error {
 			a.Logger.Info("xnode-agent stopped", "state", a.State.Get(), "component", "bootstrap")
 			return nil
 		case <-ticker.C:
-			if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(a.Config.NodeID, "")); err != nil {
+			if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(a.Config.NodeID, a.lastConfigHash)); err != nil {
 				a.State.Set(state.Degraded)
 				return fmt.Errorf("report heartbeat: %w", err)
 			}
@@ -118,14 +121,19 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		return a.degrade("get detect rules", err)
 	}
 
+	configHash, err := localstate.HashNodeConfig(nodeConfig)
+	if err != nil {
+		return a.degrade("hash node config", err)
+	}
+
+	usersHash, err := localstate.HashUsers(users)
+	if err != nil {
+		return a.degrade("hash users", err)
+	}
+
 	realitySecret, _, err := secrets.EnsureRealitySecret(a.Secrets)
 	if err != nil {
 		return a.degrade("ensure reality secret", err)
-	}
-
-	planHash := nodeConfig.ConfigHash
-	if planHash == "" {
-		planHash = "mock-config"
 	}
 
 	if a.Runtime != nil {
@@ -134,7 +142,7 @@ func (a *App) SyncOnce(ctx context.Context) error {
 			Users:      users,
 			Rules:      rules,
 			Secrets:    realitySecret,
-			Hash:       planHash,
+			Hash:       configHash,
 		}
 		if err := a.Runtime.ApplyPlan(ctx, plan); err != nil {
 			return a.degrade("apply runtime plan", err)
@@ -142,12 +150,17 @@ func (a *App) SyncOnce(ctx context.Context) error {
 	}
 
 	a.State.Set(state.Running)
+	a.lastConfigHash = configHash
 
-	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, planHash, realitySecret)); err != nil {
+	if err := a.saveLocalState(ctx, nodeConfig, users, configHash, usersHash); err != nil {
+		return a.degrade("save local state", err)
+	}
+
+	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, configHash, realitySecret)); err != nil {
 		return a.degrade("report runtime", err)
 	}
 
-	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, planHash)); err != nil {
+	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, configHash)); err != nil {
 		return a.degrade("report heartbeat", err)
 	}
 
@@ -161,6 +174,57 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		"state", a.State.Get(),
 		"component", "bootstrap",
 	)
+
+	return nil
+}
+
+func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig, users []nodeapi.UserInfo, configHash string, usersHash string) error {
+	paths := a.Config.StatePaths()
+	now := time.Now().Unix()
+	createdAt := now
+	if existing, err := localstate.LoadAgentState(paths.AgentJSON); err == nil && existing.CreatedAt > 0 {
+		createdAt = existing.CreatedAt
+	}
+
+	agentState := localstate.AgentState{
+		Version:    1,
+		PanelURL:   a.Config.PanelURL,
+		NodeID:     nodeConfig.NodeID,
+		NodeDomain: nodeConfig.Domain,
+		State:      string(a.State.Get()),
+		CreatedAt:  createdAt,
+		UpdatedAt:  now,
+	}
+	if err := localstate.SaveAgentState(paths.AgentJSON, agentState); err != nil {
+		return err
+	}
+
+	usersCache := localstate.UsersCache{
+		Version:   1,
+		Users:     append([]nodeapi.UserInfo(nil), users...),
+		UsersHash: usersHash,
+		UpdatedAt: now,
+	}
+	if err := localstate.SaveUsersCache(paths.UsersCacheJSON, usersCache); err != nil {
+		return err
+	}
+
+	health := runtime.Health{}
+	if a.Runtime != nil {
+		health = a.Runtime.Health(ctx)
+	}
+	runtimeState := localstate.RuntimeState{
+		CoreVersion:    health.CoreVersion,
+		AgentVersion:   a.Version,
+		LastConfigHash: configHash,
+		LastUsersHash:  usersHash,
+		LastError:      health.LastError,
+		LastApplyAt:    now,
+		UpdatedAt:      now,
+	}
+	if err := localstate.SaveRuntimeState(paths.RuntimeJSON, runtimeState); err != nil {
+		return err
+	}
 
 	return nil
 }

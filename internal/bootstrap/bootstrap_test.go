@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/makeausername/xnode-agent/internal/localstate"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/state"
 )
@@ -87,6 +88,32 @@ func TestSyncOnceWithMockPanelCreatesRealityAndReportsRuntime(t *testing.T) {
 		t.Fatalf("xray.json is not valid JSON: %s", xrayData)
 	}
 
+	agentPath := filepath.Join(dataDir, "agent.json")
+	if _, err := os.Stat(agentPath); err != nil {
+		t.Fatalf("Stat(agent.json) error = %v", err)
+	}
+
+	runtimePath := filepath.Join(dataDir, "runtime.json")
+	runtimeState, err := localstate.LoadRuntimeState(runtimePath)
+	if err != nil {
+		t.Fatalf("LoadRuntimeState(runtime.json) error = %v", err)
+	}
+	if runtimeState.LastConfigHash == "" {
+		t.Fatal("runtime.json last_config_hash is empty")
+	}
+	if runtimeState.LastUsersHash == "" {
+		t.Fatal("runtime.json last_users_hash is empty")
+	}
+
+	usersCachePath := filepath.Join(dataDir, "users.cache.json")
+	usersCache, err := localstate.LoadUsersCache(usersCachePath)
+	if err != nil {
+		t.Fatalf("LoadUsersCache(users.cache.json) error = %v", err)
+	}
+	if len(usersCache.Users) == 0 {
+		t.Fatal("users.cache.json users is empty")
+	}
+
 	secret, err := app.Secrets.LoadReality()
 	if err != nil {
 		t.Fatalf("LoadReality() error = %v", err)
@@ -121,8 +148,8 @@ func TestSyncOnceWithMockPanelCreatesRealityAndReportsRuntime(t *testing.T) {
 	if len(report.ShortIDs) != len(secret.ShortIDs) || report.ShortIDs[0] != secret.ShortIDs[0] {
 		t.Fatalf("RuntimeReport.ShortIDs = %#v, want %#v", report.ShortIDs, secret.ShortIDs)
 	}
-	if report.ConfigHash != "mock-config" {
-		t.Fatalf("RuntimeReport.ConfigHash = %q, want mock-config", report.ConfigHash)
+	if report.ConfigHash != runtimeState.LastConfigHash {
+		t.Fatalf("RuntimeReport.ConfigHash = %q, want %q", report.ConfigHash, runtimeState.LastConfigHash)
 	}
 	wantCapabilities := []string{"vless", "reality", "vision"}
 	if len(report.Capabilities) != len(wantCapabilities) {
