@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/makeausername/xnode-agent/internal/logparser"
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/runtime"
 	"github.com/makeausername/xnode-agent/pkg/nodeapi"
@@ -94,6 +95,10 @@ func (m *Manager) ReportOnline(ctx context.Context, periodStart, periodEnd int64
 	}
 
 	return nil
+}
+
+func (m *Manager) ReportOnlineFromEntries(ctx context.Context, periodStart, periodEnd int64, entries []logparser.AccessEntry) error {
+	return m.ReportOnline(ctx, periodStart, periodEnd, logparser.BuildOnlineIPs(entries))
 }
 
 func (m *Manager) ReportDetectLog(ctx context.Context, periodStart, periodEnd int64, items []nodeapi.DetectLogItem) error {

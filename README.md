@@ -17,6 +17,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 12 completed: agent loop framework, heartbeat scheduler, and context-aware graceful shutdown
 - Step 13 completed: ETag/hash-based user sync optimization and no-op runtime apply
 - Step 14 completed: reporter framework for traffic, online IP, and detect-log reports
+- Step 15 completed: access log parser for online IP extraction
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -34,10 +35,12 @@ context cancellation. Step 13 adds ETag/hash-based users sync, persists the
 users ETag in `users.cache.json`, and skips `Runtime.ApplyPlan` when the node
 config, users hash, and existing `xray.json` are unchanged. Step 14 adds
 deterministic `report_id` generation and safe report builders, but no real
-traffic collection yet. Real panel calls are implemented at the client layer and
-tested with `httptest`, but the local check flow still uses the mock panel. It
-does not start Xray from the local check flow or implement real Docker installer
-logic.
+traffic collection yet. Step 15 adds a tolerant access log parser that maps
+stable generated user email tags to `user_id` and builds deduplicated online IP
+payloads from extracted source addresses. Real panel calls are implemented at
+the client layer and tested with `httptest`, but the local check flow still uses
+the mock panel. It does not start Xray from the local check flow or implement
+real Docker installer logic.
 
 Target protocol:
 
@@ -110,3 +113,8 @@ reports. It can build deterministic idempotency IDs such as
 `1001-1760000000-traffic` and send mock-safe payloads through the panel client.
 It does not implement real Xray stats parsing, real access log parsing, or real
 traffic collection yet.
+
+Step 15 adds `internal/logparser` for online IP extraction from Xray access log
+lines. Invalid log lines are skipped, not fatal, and real file tailing is still
+deferred. Online IP report plumbing remains safe and test-only; `--check` does
+not start Xray, tail logs, run Docker, or call a real panel in mock mode.

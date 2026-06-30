@@ -1,13 +1,14 @@
 # Operations
 
-This repository is currently at Step 14. It can render a local Xray JSON
+This repository is currently at Step 15. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
 process manager skeleton, centralizes the VLESS inbound builder in
 `internal/protocol/vless`, and has a cancellable agent loop framework for
 heartbeat and sync scheduling. The sync path now uses users ETag/cache metadata
 and config/users hashes to skip runtime apply work when nothing changed. Step
 14 adds a reporter framework for traffic, online IP, and detect-log payloads,
-but does not start new reporting loops.
+and Step 15 adds tolerant access log parsing for online IP extraction, but does
+not start new reporting loops.
 
 Local Windows verification:
 
@@ -98,3 +99,16 @@ flows. Real Xray stats parsing, real access log parsing, detect-rule audit
 matching, Docker behavior, production panel rollout, and long-running reporter
 schedulers come later. The local `--check` command still performs one sync and
 exits; it does not start Xray, Docker, or reporter loops.
+
+## Step 15 access log parser skeleton
+
+Step 15 adds `internal/logparser`, a tolerant parser for Xray access log lines.
+It extracts stable generated user email tags such as `user-10001@panel.local`,
+maps them back to `user_id`, extracts IPv4 or bracketed IPv6 source addresses,
+and builds deduplicated, sorted online IP payloads for the existing reporter
+framework.
+
+Invalid or partial log lines are skipped and counted; they are not fatal.
+Real long-running file tailing is not implemented yet. The local `--check`
+command still performs one sync and exits; it does not start Xray, Docker,
+reporter loops, or access log tailing.

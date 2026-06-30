@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/makeausername/xnode-agent/internal/logparser"
 	"github.com/makeausername/xnode-agent/internal/runtime"
 	"github.com/makeausername/xnode-agent/pkg/nodeapi"
 )
@@ -99,6 +100,39 @@ func TestReportOnlineSendsIPv4AndIPv6Examples(t *testing.T) {
 		PeriodStart: 1760000000,
 		PeriodEnd:   1760000060,
 		Data:        online,
+	}
+	if !reflect.DeepEqual(panel.onlineReport, want) {
+		t.Fatalf("OnlineReport = %#v, want %#v", panel.onlineReport, want)
+	}
+}
+
+func TestReportOnlineFromEntriesBuildsDeduplicatedSortedReport(t *testing.T) {
+	panel := &fakePanel{}
+	manager := NewManager(1001, panel, &fakeRuntime{})
+	entries := []logparser.AccessEntry{
+		{UserID: 2, SourceIP: "203.0.113.10"},
+		{UserID: 1, SourceIP: "203.0.113.20"},
+		{UserID: 1, SourceIP: "198.51.100.1"},
+		{UserID: 1, SourceIP: "198.51.100.1"},
+	}
+
+	if err := manager.ReportOnlineFromEntries(context.Background(), 1760000000, 1760000060, entries); err != nil {
+		t.Fatalf("ReportOnlineFromEntries() error = %v", err)
+	}
+	if panel.onlineCalls != 1 {
+		t.Fatalf("ReportOnline calls = %d, want 1", panel.onlineCalls)
+	}
+
+	want := nodeapi.OnlineReport{
+		ReportID:    "1001-1760000000-online",
+		NodeID:      1001,
+		PeriodStart: 1760000000,
+		PeriodEnd:   1760000060,
+		Data: []nodeapi.OnlineIP{
+			{UserID: 1, IP: "198.51.100.1"},
+			{UserID: 1, IP: "203.0.113.20"},
+			{UserID: 2, IP: "203.0.113.10"},
+		},
 	}
 	if !reflect.DeepEqual(panel.onlineReport, want) {
 		t.Fatalf("OnlineReport = %#v, want %#v", panel.onlineReport, want)
