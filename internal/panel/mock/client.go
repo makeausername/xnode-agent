@@ -25,8 +25,19 @@ type Client struct {
 }
 
 func NewClient() *Client {
+	return NewClientForNode(DefaultNodeID, DefaultDomain)
+}
+
+func NewClientForNode(nodeID int64, domain string) *Client {
+	if nodeID == 0 {
+		nodeID = DefaultNodeID
+	}
+	if domain == "" {
+		domain = DefaultDomain
+	}
+
 	return &Client{
-		config: vless.DefaultNodeConfig(DefaultNodeID, DefaultDomain),
+		config: vless.DefaultNodeConfig(nodeID, domain),
 		users: []nodeapi.UserInfo{
 			{
 				ID:             1,
