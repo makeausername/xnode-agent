@@ -1,8 +1,9 @@
 # Configuration
 
-This repository is currently at Step 2 development stage. Local configuration,
-state paths, and mock panel mode are being frozen before real panel API calls,
-real Xray process management, or real Docker installer logic are implemented.
+This repository is currently at Step 4 development stage. Local configuration,
+state paths, mock panel mode, and local Secret Vault persistence are being
+frozen before real panel API calls, real Xray process management, or real Docker
+installer logic are implemented.
 
 The deployment template passes configuration through environment variables:
 
@@ -30,6 +31,16 @@ Local log files:
 - `/var/log/xnode/xray.log`
 - `/var/log/xnode/access.log`
 
-Step 2 documents and exposes the local layout only. It does not implement real
-persistence, panel synchronization, Xray process management, or Docker installer
-logic.
+## Secret Vault
+
+The local Secret Vault is file-backed under `DATA_DIR`.
+
+- `token` contains `node_token` and must not be committed.
+- `reality.json` contains Reality `private_key`, `public_key`, and `short_ids`.
+- `private_key` must never be uploaded to the panel.
+- Deleting `reality.json` will force future key regeneration once key generation
+  is implemented.
+
+Step 4 documents and implements local Secret Vault file persistence only. It
+does not implement real panel synchronization, Reality key generation, Xray
+process management, or Docker installer logic.
