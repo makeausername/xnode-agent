@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -98,6 +99,31 @@ func TestRenderConfigMissingPrivateKeyReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "private_key") {
 		t.Fatalf("RenderConfig() error = %q, want private_key", err.Error())
+	}
+}
+
+func TestRenderConfigUsesProtocolBuilderInboundShape(t *testing.T) {
+	plan := testPlan()
+
+	data, err := RenderConfig(plan)
+	if err != nil {
+		t.Fatalf("RenderConfig() error = %v", err)
+	}
+
+	var rendered xrayConfig
+	if err := json.Unmarshal(data, &rendered); err != nil {
+		t.Fatalf("Unmarshal(rendered config) error = %v", err)
+	}
+	if len(rendered.Inbounds) != 1 {
+		t.Fatalf("len(inbounds) = %d, want 1", len(rendered.Inbounds))
+	}
+
+	want, err := vless.BuildInbound(plan.NodeConfig, plan.Users, plan.Secrets)
+	if err != nil {
+		t.Fatalf("vless.BuildInbound() error = %v", err)
+	}
+	if !reflect.DeepEqual(rendered.Inbounds[0], want) {
+		t.Fatalf("rendered inbound = %#v, want protocol builder inbound %#v", rendered.Inbounds[0], want)
 	}
 }
 

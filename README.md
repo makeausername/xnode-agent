@@ -11,6 +11,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 6 completed: Xray JSON renderer for VLESS + REALITY + Vision
 - Step 7 completed: local agent state, users cache, and runtime metadata files
 - Step 8 completed: Xray Runtime process manager skeleton
+- Step 9 completed: VLESS + REALITY + Vision protocol builder centralized in `internal/protocol/vless`
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -18,8 +19,9 @@ templates, local configuration defaults, state path helpers, mock panel mode,
 local Secret Vault file persistence, Reality key pair and shortId generation,
 an Xray JSON config renderer, local agent state files, a users cache, runtime
 metadata, a process manager skeleton for an external Xray process, and a
-one-shot local sync check. It does not implement real panel API logic, start
-Xray from the local check flow, or implement real Docker installer logic.
+centralized VLESS + REALITY + Vision inbound builder, and a one-shot local sync
+check. It does not implement real panel API logic, start Xray from the local
+check flow, or implement real Docker installer logic.
 
 Target protocol:
 
@@ -59,8 +61,8 @@ The local mock check now creates:
 
 The `.xnode` runtime directory is ignored by git and must not be committed.
 
-Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 8.
+Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 9.
 
-Step 8 keeps local Windows development lightweight: `--check` renders
+Step 9 keeps local Windows development lightweight: `--check` renders
 `.xnode\data\xray.json` only and still does not require a real Xray binary or
 Docker.

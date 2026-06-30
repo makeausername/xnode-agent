@@ -1,8 +1,9 @@
 # Operations
 
-This repository is currently at Step 8. It can render a local Xray JSON
-configuration for VLESS + REALITY + Vision and includes a guarded Xray runtime
-process manager skeleton.
+This repository is currently at Step 9. It can render a local Xray JSON
+configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
+process manager skeleton, and centralizes the VLESS inbound builder in
+`internal/protocol/vless`.
 
 Local Windows verification:
 
@@ -38,3 +39,13 @@ The current local `--check` flow still renders config only through
 `Runtime.ApplyPlan`. It does not call `Runtime.Start`, does not start the Xray
 process, and does not run Docker. Real Xray process startup will be tested later
 on a Linux server with an installed Xray binary.
+
+## Step 9 protocol builder boundary
+
+The first protocol target is fixed to VLESS + REALITY + Vision + TCP/raw + 443.
+The Xray runtime package renders the full Xray config wrapper and manages config
+files/process state, but protocol-specific inbound construction belongs in
+`internal/protocol/vless`.
+
+Additional protocols should be added later as separate protocol builders instead
+of being mixed into `internal/runtime/xray`.
