@@ -8,13 +8,15 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 3 completed: bootstrap wiring for local config and mock panel
 - Step 4 completed: local Secret Vault file persistence
 - Step 5 completed: Reality key and shortId generation
+- Step 6 completed: Xray JSON renderer for VLESS + REALITY + Vision
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
 templates, local configuration defaults, state path helpers, mock panel mode,
 local Secret Vault file persistence, Reality key pair and shortId generation,
-and a one-shot local sync check. It does not implement real panel API logic,
-real Xray runtime logic, or real Docker installer logic.
+an Xray JSON config renderer, and a one-shot local sync check. It does not
+implement real panel API logic, start Xray, or implement real Docker installer
+logic.
 
 Target protocol:
 
@@ -42,4 +44,11 @@ $env:LOG_DIR=".xnode\logs"
 .\bin\xnode.exe --check
 ```
 
-Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 3.
+The local mock check now creates:
+
+```text
+.xnode\data\reality.json
+.xnode\data\xray.json
+```
+
+Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 6.

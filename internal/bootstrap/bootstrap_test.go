@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,6 +78,15 @@ func TestSyncOnceWithMockPanelCreatesRealityAndReportsRuntime(t *testing.T) {
 		t.Fatalf("Stat(reality.json) error = %v", err)
 	}
 
+	xrayPath := filepath.Join(dataDir, "xray.json")
+	xrayData, err := os.ReadFile(xrayPath)
+	if err != nil {
+		t.Fatalf("ReadFile(xray.json) error = %v", err)
+	}
+	if !json.Valid(xrayData) {
+		t.Fatalf("xray.json is not valid JSON: %s", xrayData)
+	}
+
 	secret, err := app.Secrets.LoadReality()
 	if err != nil {
 		t.Fatalf("LoadReality() error = %v", err)
@@ -110,6 +120,9 @@ func TestSyncOnceWithMockPanelCreatesRealityAndReportsRuntime(t *testing.T) {
 	}
 	if len(report.ShortIDs) != len(secret.ShortIDs) || report.ShortIDs[0] != secret.ShortIDs[0] {
 		t.Fatalf("RuntimeReport.ShortIDs = %#v, want %#v", report.ShortIDs, secret.ShortIDs)
+	}
+	if report.ConfigHash != "mock-config" {
+		t.Fatalf("RuntimeReport.ConfigHash = %q, want mock-config", report.ConfigHash)
 	}
 	wantCapabilities := []string{"vless", "reality", "vision"}
 	if len(report.Capabilities) != len(wantCapabilities) {

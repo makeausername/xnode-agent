@@ -13,6 +13,8 @@ import (
 	"github.com/makeausername/xnode-agent/internal/panel"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/panel/sspanel"
+	"github.com/makeausername/xnode-agent/internal/runtime"
+	"github.com/makeausername/xnode-agent/internal/runtime/xray"
 	"github.com/makeausername/xnode-agent/internal/secrets"
 	"github.com/makeausername/xnode-agent/internal/state"
 	"github.com/makeausername/xnode-agent/pkg/nodeapi"
@@ -24,6 +26,7 @@ type App struct {
 	State   *state.Manager
 	Panel   panel.Client
 	Secrets secrets.Store
+	Runtime runtime.Runtime
 	Logger  *slog.Logger
 }
 
@@ -54,6 +57,7 @@ func NewApp(version string) (*App, error) {
 		State:   state.NewManager(state.Uninitialized),
 		Panel:   panelClient,
 		Secrets: secrets.NewFileStore(cfg.DataDir),
+		Runtime: xray.NewRuntime(cfg.XrayBinPath, cfg.StatePaths().XrayJSON),
 		Logger:  logger,
 	}, nil
 }
@@ -119,13 +123,31 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		return a.degrade("ensure reality secret", err)
 	}
 
+	planHash := nodeConfig.ConfigHash
+	if planHash == "" {
+		planHash = "mock-config"
+	}
+
+	if a.Runtime != nil {
+		plan := runtime.RuntimePlan{
+			NodeConfig: nodeConfig,
+			Users:      users,
+			Rules:      rules,
+			Secrets:    realitySecret,
+			Hash:       planHash,
+		}
+		if err := a.Runtime.ApplyPlan(ctx, plan); err != nil {
+			return a.degrade("apply runtime plan", err)
+		}
+	}
+
 	a.State.Set(state.Running)
 
-	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, nodeConfig.ConfigHash, realitySecret)); err != nil {
+	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, planHash, realitySecret)); err != nil {
 		return a.degrade("report runtime", err)
 	}
 
-	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, nodeConfig.ConfigHash)); err != nil {
+	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, planHash)); err != nil {
 		return a.degrade("report heartbeat", err)
 	}
 

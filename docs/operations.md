@@ -1,6 +1,8 @@
 # Operations
 
-This repository is currently at Step 1 skeleton stage.
+This repository is currently at Step 6. It can render a local Xray JSON
+configuration for VLESS + REALITY + Vision, but it does not start or restart
+Xray yet.
 
 Local Windows verification:
 
@@ -18,3 +20,12 @@ The placeholder smoke test runs the agent version command:
 ```sh
 sh scripts/smoke.sh
 ```
+
+After a local mock sync, inspect the rendered config with:
+
+```sh
+cat data/xray.json
+```
+
+Step 6 only renders the config file. It does not call the Xray binary, start
+the Xray process, or run Docker.

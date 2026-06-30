@@ -38,6 +38,14 @@ func (r *Runtime) Health(ctx context.Context) runtime.Health {
 }
 
 func (r *Runtime) ApplyPlan(ctx context.Context, plan runtime.RuntimePlan) error {
+	data, err := RenderConfig(plan)
+	if err != nil {
+		return err
+	}
+	if err := WriteConfigAtomic(r.ConfigPath, data); err != nil {
+		return err
+	}
+
 	r.health.ConfigHash = plan.Hash
 	return nil
 }
