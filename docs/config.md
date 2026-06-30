@@ -1,6 +1,8 @@
 # Configuration
 
-This repository is currently at Step 1 skeleton stage.
+This repository is currently at Step 2 development stage. Local configuration,
+state paths, and mock panel mode are being frozen before real panel API calls,
+real Xray process management, or real Docker installer logic are implemented.
 
 The deployment template passes configuration through environment variables:
 
@@ -8,9 +10,13 @@ The deployment template passes configuration through environment variables:
 - `NODE_ID`
 - `NODE_DOMAIN`
 - `ENROLL_TOKEN`
+- `DATA_DIR` (default: `/var/lib/xnode`)
+- `LOG_DIR` (default: `/var/log/xnode`)
+- `XRAY_BIN` (default: `/usr/local/bin/xray`)
+- `XNODE_MOCK_PANEL=true` or `XNODE_MOCK_PANEL=1`
 - `TZ=Asia/Shanghai`
 
-Intended local state files:
+Local state files:
 
 - `/var/lib/xnode/agent.json`
 - `/var/lib/xnode/token`
@@ -19,4 +25,11 @@ Intended local state files:
 - `/var/lib/xnode/users.cache.json`
 - `/var/lib/xnode/runtime.json`
 
-The files above document the intended layout only. Step 1 does not implement real persistence, panel synchronization, or Xray runtime management.
+Local log files:
+
+- `/var/log/xnode/xray.log`
+- `/var/log/xnode/access.log`
+
+Step 2 documents and exposes the local layout only. It does not implement real
+persistence, panel synchronization, Xray process management, or Docker installer
+logic.
