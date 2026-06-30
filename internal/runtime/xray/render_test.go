@@ -40,6 +40,7 @@ type renderedConfig struct {
 			} `json:"realitySettings"`
 		} `json:"streamSettings"`
 	} `json:"inbounds"`
+	Routing Routing `json:"routing"`
 }
 
 func TestRenderConfigReturnsValidJSONAndMapsUsers(t *testing.T) {
@@ -124,6 +125,94 @@ func TestRenderConfigUsesProtocolBuilderInboundShape(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rendered.Inbounds[0], want) {
 		t.Fatalf("rendered inbound = %#v, want protocol builder inbound %#v", rendered.Inbounds[0], want)
+	}
+}
+
+func TestBuildRoutingRulesIncludesDefaultBittorrentRule(t *testing.T) {
+	rules := BuildRoutingRules(nil)
+
+	if len(rules) != 1 {
+		t.Fatalf("len(rules) = %d, want 1", len(rules))
+	}
+	if !reflect.DeepEqual(rules[0], RoutingRule{
+		Type:        "field",
+		Protocol:    []string{"bittorrent"},
+		OutboundTag: "block",
+	}) {
+		t.Fatalf("default routing rule = %#v", rules[0])
+	}
+}
+
+func TestRenderConfigRendersProtocolDetectRule(t *testing.T) {
+	plan := testPlan()
+	plan.Rules = []nodeapi.DetectRule{
+		{ID: 10, Type: "protocol", Pattern: "http"},
+	}
+
+	data, err := RenderConfig(plan)
+	if err != nil {
+		t.Fatalf("RenderConfig() error = %v", err)
+	}
+
+	rendered := decodeRenderedConfig(t, data)
+	if len(rendered.Routing.Rules) != 2 {
+		t.Fatalf("len(routing.rules) = %d, want 2", len(rendered.Routing.Rules))
+	}
+	got := rendered.Routing.Rules[1]
+	if !reflect.DeepEqual(got.Protocol, []string{"http"}) {
+		t.Fatalf("protocol rule protocol = %#v, want http", got.Protocol)
+	}
+	if got.OutboundTag != "block" {
+		t.Fatalf("protocol rule outboundTag = %q, want block", got.OutboundTag)
+	}
+}
+
+func TestRenderConfigRendersDomainRegexDetectRule(t *testing.T) {
+	plan := testPlan()
+	plan.Rules = []nodeapi.DetectRule{
+		{ID: 11, Type: "domain_regex", Pattern: `(?i)example`},
+	}
+
+	data, err := RenderConfig(plan)
+	if err != nil {
+		t.Fatalf("RenderConfig() error = %v", err)
+	}
+
+	rendered := decodeRenderedConfig(t, data)
+	if len(rendered.Routing.Rules) != 2 {
+		t.Fatalf("len(routing.rules) = %d, want 2", len(rendered.Routing.Rules))
+	}
+	got := rendered.Routing.Rules[1]
+	if !reflect.DeepEqual(got.Domain, []string{"regexp:(?i)example"}) {
+		t.Fatalf("domain rule domain = %#v, want regexp-prefixed pattern", got.Domain)
+	}
+	if len(got.Protocol) != 0 {
+		t.Fatalf("domain rule protocol = %#v, want empty", got.Protocol)
+	}
+}
+
+func TestRenderConfigSkipsInvalidDetectRules(t *testing.T) {
+	plan := testPlan()
+	plan.Rules = []nodeapi.DetectRule{
+		{ID: 12, Type: "domain_regex", Pattern: `[`},
+		{ID: 13, Type: "unknown", Pattern: "noop"},
+		{ID: 14, Type: "protocol", Pattern: "bittorrent"},
+	}
+
+	data, err := RenderConfig(plan)
+	if err != nil {
+		t.Fatalf("RenderConfig() error = %v", err)
+	}
+	if !json.Valid(data) {
+		t.Fatalf("RenderConfig() returned invalid JSON: %s", data)
+	}
+
+	rendered := decodeRenderedConfig(t, data)
+	if len(rendered.Routing.Rules) != 2 {
+		t.Fatalf("len(routing.rules) = %d, want default plus one valid rule", len(rendered.Routing.Rules))
+	}
+	if !reflect.DeepEqual(rendered.Routing.Rules[1].Protocol, []string{"bittorrent"}) {
+		t.Fatalf("valid protocol rule = %#v, want bittorrent", rendered.Routing.Rules[1])
 	}
 }
 

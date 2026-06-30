@@ -18,7 +18,7 @@ type xrayConfig struct {
 	Policy    xrayPolicy      `json:"policy"`
 	Inbounds  []vless.Inbound `json:"inbounds"`
 	Outbounds []xrayOutbound  `json:"outbounds"`
-	Routing   xrayRouting     `json:"routing"`
+	Routing   Routing         `json:"routing"`
 }
 
 type xrayLog struct {
@@ -45,16 +45,6 @@ type xraySystemPolicy struct {
 type xrayOutbound struct {
 	Protocol string `json:"protocol"`
 	Tag      string `json:"tag"`
-}
-
-type xrayRouting struct {
-	Rules []xrayRoutingRule `json:"rules"`
-}
-
-type xrayRoutingRule struct {
-	Type        string   `json:"type"`
-	Protocol    []string `json:"protocol"`
-	OutboundTag string   `json:"outboundTag"`
 }
 
 // RenderConfig renders the local Xray JSON config for VLESS + REALITY + Vision.
@@ -87,10 +77,8 @@ func RenderConfig(plan runtime.RuntimePlan) ([]byte, error) {
 			{Protocol: "freedom", Tag: "direct"},
 			{Protocol: "blackhole", Tag: "block"},
 		},
-		Routing: xrayRouting{
-			Rules: []xrayRoutingRule{
-				{Type: "field", Protocol: []string{"bittorrent"}, OutboundTag: "block"},
-			},
+		Routing: Routing{
+			Rules: BuildRoutingRules(plan.Rules),
 		},
 	}
 

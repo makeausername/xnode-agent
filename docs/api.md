@@ -1,6 +1,6 @@
 # API
 
-This repository is currently at Step 14.
+This repository is currently at Step 16.
 
 The `pkg/nodeapi` package contains DTOs for the SSPanel Node API v1 contract. The
 `internal/panel/sspanel` package implements the HTTP client layer for these
@@ -124,6 +124,23 @@ errors or logs.
 
 For user and detect-rule sync, `304 Not Modified` is treated as a cache hit: the
 client returns nil data, the response `ETag` if present, and no error.
+
+## Detect rules
+
+Step 16 supports safe validation and Xray routing render for these detect-rule
+types:
+
+```json
+[
+  { "id": 1, "type": "protocol", "pattern": "bittorrent" },
+  { "id": 2, "type": "domain_regex", "pattern": "(?i)example" }
+]
+```
+
+Valid `protocol` rules render as Xray routing protocol block rules. Valid
+`domain_regex` rules render as Xray routing domain rules with the `regexp:`
+prefix. Invalid or unknown rules are skipped by the local renderer and are not
+fatal. Real detect-log matching and traffic inspection remain deferred.
 
 Repository verification uses mock panel mode. Do not call a real panel, start
 Xray, or run Docker for the current local check flow.

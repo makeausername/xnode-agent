@@ -18,6 +18,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 13 completed: ETag/hash-based user sync optimization and no-op runtime apply
 - Step 14 completed: reporter framework for traffic, online IP, and detect-log reports
 - Step 15 completed: access log parser for online IP extraction
+- Step 16 completed: detect rules and audit routing skeleton
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -37,10 +38,12 @@ config, users hash, and existing `xray.json` are unchanged. Step 14 adds
 deterministic `report_id` generation and safe report builders, but no real
 traffic collection yet. Step 15 adds a tolerant access log parser that maps
 stable generated user email tags to `user_id` and builds deduplicated online IP
-payloads from extracted source addresses. Real panel calls are implemented at
-the client layer and tested with `httptest`, but the local check flow still uses
-the mock panel. It does not start Xray from the local check flow or implement
-real Docker installer logic.
+payloads from extracted source addresses. Step 16 adds a safe detect-rule
+framework and renders supported `protocol` and `domain_regex` rules into Xray
+routing block rules, skipping invalid rules instead of failing local config
+render. Real panel calls are implemented at the client layer and tested with
+`httptest`, but the local check flow still uses the mock panel. It does not
+start Xray from the local check flow or implement real Docker installer logic.
 
 Target protocol:
 
@@ -118,3 +121,9 @@ Step 15 adds `internal/logparser` for online IP extraction from Xray access log
 lines. Invalid log lines are skipped, not fatal, and real file tailing is still
 deferred. Online IP report plumbing remains safe and test-only; `--check` does
 not start Xray, tail logs, run Docker, or call a real panel in mock mode.
+
+Step 16 adds `internal/audit` for detect-rule validation and matching helpers.
+Supported rule types are `protocol` and `domain_regex`. The Xray renderer always
+keeps the default bittorrent block rule and appends valid detect rules to
+`routing.rules`; invalid detect rules are skipped and real detect-log matching
+is still deferred.

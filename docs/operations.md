@@ -1,6 +1,6 @@
 # Operations
 
-This repository is currently at Step 15. It can render a local Xray JSON
+This repository is currently at Step 16. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
 process manager skeleton, centralizes the VLESS inbound builder in
 `internal/protocol/vless`, and has a cancellable agent loop framework for
@@ -8,7 +8,8 @@ heartbeat and sync scheduling. The sync path now uses users ETag/cache metadata
 and config/users hashes to skip runtime apply work when nothing changed. Step
 14 adds a reporter framework for traffic, online IP, and detect-log payloads,
 and Step 15 adds tolerant access log parsing for online IP extraction, but does
-not start new reporting loops.
+not start new reporting loops. Step 16 adds detect-rule validation and routing
+render for supported rules.
 
 Local Windows verification:
 
@@ -112,3 +113,17 @@ Invalid or partial log lines are skipped and counted; they are not fatal.
 Real long-running file tailing is not implemented yet. The local `--check`
 command still performs one sync and exits; it does not start Xray, Docker,
 reporter loops, or access log tailing.
+
+## Step 16 detect-rule routing skeleton
+
+Step 16 adds `internal/audit` validation helpers for detect rules and renders
+supported rules into the Xray routing block. Supported rule types are
+`protocol` and `domain_regex`.
+
+Invalid rules, invalid regular expressions, and unknown rule types are skipped,
+not fatal. The renderer still always includes the default bittorrent block rule.
+
+This is only the routing skeleton. Real detect-log matching, traffic
+inspection, long-running audit loops, production panel rollout behavior, Docker
+behavior, and real Xray startup remain deferred. The local `--check` command
+still performs one mock-safe sync and exits.
