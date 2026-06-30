@@ -1,0 +1,15 @@
+services:
+  xnode:
+    image: ghcr.io/makeausername/xnode-agent:latest
+    container_name: xnode
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./data:/var/lib/xnode
+      - ./logs:/var/log/xnode
+    environment:
+      - PANEL_URL
+      - NODE_ID
+      - NODE_DOMAIN
+      - ENROLL_TOKEN
+      - TZ=Asia/Shanghai
