@@ -1,10 +1,9 @@
 # Configuration
 
-This repository is currently at Step 7 development stage. Local configuration,
+This repository is currently at Step 11 development stage. Local configuration,
 state paths, mock panel mode, local Secret Vault persistence, Reality key
 generation, Xray JSON rendering, local users cache, and runtime metadata are
-being frozen before real panel API calls, real Xray process management, or real
-Docker installer logic are implemented.
+implemented with SSPanel client enrollment and node token persistence.
 
 The deployment template passes configuration through environment variables:
 
@@ -44,6 +43,12 @@ Local log files:
 The local Secret Vault is file-backed under `DATA_DIR`.
 
 - `token` contains `node_token` and must not be committed.
+- `ENROLL_TOKEN` is only needed for first enrollment when `token` is missing.
+- After enrollment, the panel-issued `node_token` is saved to `token` and is
+  used for config, user, rule, runtime, traffic, online, and heartbeat API
+  requests.
+- Deleting `token` forces re-enrollment and requires a fresh valid
+  `ENROLL_TOKEN`.
 - `reality.json` is generated automatically when the agent first syncs.
 - `reality.json` contains Reality `private_key`, `public_key`, `short_ids`, and
   `created_at`.
@@ -53,7 +58,5 @@ The local Secret Vault is file-backed under `DATA_DIR`.
 - Deleting `reality.json` causes future regeneration and will invalidate
   existing subscription parameters.
 
-Step 7 documents and implements local Reality key and shortId generation,
-rendered Xray config output, local agent state files, users cache, and runtime
-metadata only. It does not implement real panel synchronization, Xray process
-management, or Docker installer logic.
+Mock panel mode does not require `ENROLL_TOKEN` and does not create or use a
+node token.

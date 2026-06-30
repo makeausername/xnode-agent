@@ -49,7 +49,7 @@ func NewApp(version string) (*App, error) {
 		}
 		panelClient = mock.NewClientForNode(cfg.NodeID, cfg.NodeDomain)
 	} else {
-		panelClient = sspanel.NewClient(cfg.PanelURL, cfg.EnrollToken)
+		panelClient = sspanel.NewClient(cfg.PanelURL, "")
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
@@ -105,6 +105,10 @@ func (a *App) Run(ctx context.Context) error {
 
 func (a *App) SyncOnce(ctx context.Context) error {
 	a.State.Set(state.Configured)
+
+	if err := a.EnsureNodeToken(ctx); err != nil {
+		return a.degrade("ensure node token", err)
+	}
 
 	nodeConfig, err := a.Panel.GetConfig(ctx)
 	if err != nil {

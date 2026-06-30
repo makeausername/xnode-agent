@@ -55,6 +55,10 @@ func NewClientWithHTTPClient(panelURL string, token string, httpClient *http.Cli
 	}
 }
 
+func (c *Client) SetToken(token string) {
+	c.Token = token
+}
+
 func (c *Client) Enroll(ctx context.Context, req nodeapi.EnrollRequest) (nodeapi.EnrollResponse, error) {
 	return postJSON[nodeapi.EnrollResponse](ctx, c, enrollPath, req)
 }

@@ -373,6 +373,43 @@ func TestConstructorTrimsTrailingSlashFromPanelURL(t *testing.T) {
 	}
 }
 
+func TestSetTokenUpdatesAuthorizationHeader(t *testing.T) {
+	requestCount := 0
+	wantTokens := []string{"initial-node-token", "updated-node-token"}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requestCount >= len(wantTokens) {
+			t.Fatalf("unexpected request %d", requestCount+1)
+		}
+		if r.URL.Path != configPath {
+			t.Fatalf("path = %q, want %q", r.URL.Path, configPath)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+wantTokens[requestCount] {
+			t.Fatalf("request %d Authorization = %q, want bearer token", requestCount+1, got)
+		}
+		requestCount++
+		writeAPIResponse(t, w, http.StatusOK, nodeapi.NodeConfig{
+			SchemaVersion: 1,
+			NodeID:        1001,
+			Domain:        "node1.example.com",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClientWithHTTPClient(server.URL, wantTokens[0], server.Client())
+	if _, err := client.GetConfig(context.Background()); err != nil {
+		t.Fatalf("GetConfig() error = %v", err)
+	}
+
+	client.SetToken(wantTokens[1])
+	if _, err := client.GetConfig(context.Background()); err != nil {
+		t.Fatalf("GetConfig() after SetToken error = %v", err)
+	}
+	if requestCount != len(wantTokens) {
+		t.Fatalf("request count = %d, want %d", requestCount, len(wantTokens))
+	}
+}
+
 func writeAPIResponse[T any](t *testing.T, w http.ResponseWriter, statusCode int, data T) {
 	t.Helper()
 

@@ -13,6 +13,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 8 completed: Xray Runtime process manager skeleton
 - Step 9 completed: VLESS + REALITY + Vision protocol builder centralized in `internal/protocol/vless`
 - Step 10 completed: SSPanel Node API v1 HTTP client skeleton
+- Step 11 completed: agent enrollment flow and node_token persistence
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -21,10 +22,11 @@ local Secret Vault file persistence, Reality key pair and shortId generation,
 an Xray JSON config renderer, local agent state files, a users cache, runtime
 metadata, a process manager skeleton for an external Xray process, and a
 centralized VLESS + REALITY + Vision inbound builder, a SSPanel Node API v1 HTTP
-client layer, and a one-shot local sync check. Real panel calls are implemented
-at the client layer and tested with `httptest`, but the local check flow still
-uses the mock panel. It does not start Xray from the local check flow or
-implement real Docker installer logic.
+client layer, a one-shot local sync check, real-mode enrollment, and local
+`node_token` persistence. Real panel calls are implemented at the client layer
+and tested with `httptest`, but the local check flow still uses the mock panel.
+It does not start Xray from the local check flow or implement real Docker
+installer logic.
 
 Target protocol:
 
@@ -66,6 +68,11 @@ The `.xnode` runtime directory is ignored by git and must not be committed.
 
 Docker templates live under `deploy/` for later use. Do not treat them as a completed runtime deployment in Step 10.
 
-Step 10 keeps local Windows development lightweight: `--check` renders
+Local Windows development remains lightweight: `--check` renders
 `.xnode\data\xray.json` only, uses the mock panel, and still does not require a
 real panel request, a real Xray binary, or Docker.
+
+Step 11 wires real-panel enrollment into bootstrap. In real panel mode the agent
+loads `.xnode\data\token` or enrolls once with `ENROLL_TOKEN`, saves the returned
+`node_token`, and uses that token for later Node API calls. Mock mode remains
+token-free and does not require `ENROLL_TOKEN`.
