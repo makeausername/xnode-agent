@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,7 +31,12 @@ type App struct {
 	Runtime runtime.Runtime
 	Logger  *slog.Logger
 
-	lastConfigHash string
+	syncMu sync.Mutex
+	mu     sync.RWMutex
+
+	lastNodeID       int64
+	lastConfigHash   string
+	lastReportConfig nodeapi.ReportConfig
 }
 
 func NewApp(version string) (*App, error) {
@@ -82,28 +88,38 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 
-	a.Logger.Info("xnode-agent started", "version", a.Version, "state", a.State.Get(), "component", "bootstrap")
+	a.logInfo("xnode-agent started", "version", a.Version, "state", a.State.Get(), "component", "bootstrap")
 
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	heartbeatInterval, configSyncInterval, _ := a.loopIntervals()
+	loopCtx, cancelLoops := context.WithCancel(ctx)
+	defer cancelLoops()
 
-	for {
-		select {
-		case <-ctx.Done():
-			a.State.Set(state.Stopping)
-			a.Logger.Info("xnode-agent stopped", "state", a.State.Get(), "component", "bootstrap")
-			return nil
-		case <-ticker.C:
-			if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(a.Config.NodeID, a.lastConfigHash)); err != nil {
-				a.State.Set(state.Degraded)
-				return fmt.Errorf("report heartbeat: %w", err)
-			}
-			a.Logger.Info("heartbeat tick", "state", a.State.Get(), "component", "bootstrap")
-		}
+	var wg sync.WaitGroup
+	startLoop := func(run func(context.Context, time.Duration), interval time.Duration) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			run(loopCtx, interval)
+		}()
 	}
+
+	startLoop(a.RunHeartbeatLoop, heartbeatInterval)
+	startLoop(a.RunConfigSyncLoop, configSyncInterval)
+
+	<-ctx.Done()
+	a.State.Set(state.Stopping)
+	cancelLoops()
+	wg.Wait()
+	a.State.Set(state.Stopping)
+	a.logInfo("xnode-agent stopped", "state", a.State.Get(), "component", "bootstrap")
+
+	return nil
 }
 
 func (a *App) SyncOnce(ctx context.Context) error {
+	a.syncMu.Lock()
+	defer a.syncMu.Unlock()
+
 	a.State.Set(state.Configured)
 
 	if err := a.EnsureNodeToken(ctx); err != nil {
@@ -154,7 +170,7 @@ func (a *App) SyncOnce(ctx context.Context) error {
 	}
 
 	a.State.Set(state.Running)
-	a.lastConfigHash = configHash
+	a.setLastSyncSnapshot(nodeConfig.NodeID, configHash, nodeConfig.Report)
 
 	if err := a.saveLocalState(ctx, nodeConfig, users, configHash, usersHash); err != nil {
 		return a.degrade("save local state", err)
@@ -164,11 +180,11 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		return a.degrade("report runtime", err)
 	}
 
-	if err := a.Panel.ReportHeartbeat(ctx, a.heartbeatReport(nodeConfig.NodeID, configHash)); err != nil {
+	if err := a.ReportHeartbeat(ctx); err != nil {
 		return a.degrade("report heartbeat", err)
 	}
 
-	a.Logger.Info(
+	a.logInfo(
 		"sync completed",
 		"node_id", nodeConfig.NodeID,
 		"domain", nodeConfig.Domain,
@@ -245,11 +261,13 @@ func (a *App) runtimeReport(nodeID int64, configHash string, realitySecret secre
 	}
 }
 
-func (a *App) heartbeatReport(nodeID int64, configHash string) nodeapi.HeartbeatReport {
+func (a *App) heartbeatReport(nodeID int64, configHash string, health runtime.Health) nodeapi.HeartbeatReport {
 	return nodeapi.HeartbeatReport{
 		NodeID:       nodeID,
 		AgentVersion: a.Version,
+		CoreVersion:  health.CoreVersion,
 		State:        string(a.State.Get()),
+		LastError:    health.LastError,
 		ConfigHash:   configHash,
 	}
 }

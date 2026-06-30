@@ -20,12 +20,16 @@ const (
 var _ panel.Client = (*Client)(nil)
 
 type Client struct {
-	mu            sync.Mutex
-	config        nodeapi.NodeConfig
-	users         []nodeapi.UserInfo
-	rules         []nodeapi.DetectRule
-	runtimeReport nodeapi.RuntimeReport
-	hasRuntime    bool
+	mu               sync.Mutex
+	config           nodeapi.NodeConfig
+	users            []nodeapi.UserInfo
+	rules            []nodeapi.DetectRule
+	runtimeReport    nodeapi.RuntimeReport
+	heartbeatReport  nodeapi.HeartbeatReport
+	hasRuntime       bool
+	hasHeartbeat     bool
+	runtimeReports   int
+	heartbeatReports int
 }
 
 func NewClient() *Client {
@@ -100,6 +104,7 @@ func (c *Client) ReportRuntime(ctx context.Context, report nodeapi.RuntimeReport
 	report.Capabilities = append([]string(nil), report.Capabilities...)
 	c.runtimeReport = report
 	c.hasRuntime = true
+	c.runtimeReports++
 
 	return nil
 }
@@ -113,6 +118,13 @@ func (c *Client) ReportOnline(ctx context.Context, report nodeapi.OnlineReport) 
 }
 
 func (c *Client) ReportHeartbeat(ctx context.Context, report nodeapi.HeartbeatReport) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.heartbeatReport = report
+	c.hasHeartbeat = true
+	c.heartbeatReports++
+
 	return nil
 }
 
@@ -125,4 +137,25 @@ func (c *Client) LastRuntimeReport() (nodeapi.RuntimeReport, bool) {
 	report.Capabilities = append([]string(nil), report.Capabilities...)
 
 	return report, c.hasRuntime
+}
+
+func (c *Client) LastHeartbeatReport() (nodeapi.HeartbeatReport, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.heartbeatReport, c.hasHeartbeat
+}
+
+func (c *Client) RuntimeReportCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.runtimeReports
+}
+
+func (c *Client) HeartbeatReportCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.heartbeatReports
 }

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/makeausername/xnode-agent/internal/config"
 	"github.com/makeausername/xnode-agent/internal/localstate"
@@ -309,6 +310,110 @@ func TestSyncOnceWithMockPanelCreatesRealityAndReportsRuntime(t *testing.T) {
 		if report.Capabilities[i] != wantCapabilities[i] {
 			t.Fatalf("RuntimeReport.Capabilities = %#v, want %#v", report.Capabilities, wantCapabilities)
 		}
+	}
+}
+
+func TestReportHeartbeatSucceedsAfterSyncOnce(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+
+	if err := app.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce() error = %v", err)
+	}
+
+	mockPanel, ok := app.Panel.(*mock.Client)
+	if !ok {
+		t.Fatalf("Panel type = %T, want *mock.Client", app.Panel)
+	}
+	before := mockPanel.HeartbeatReportCount()
+
+	if err := app.ReportHeartbeat(context.Background()); err != nil {
+		t.Fatalf("ReportHeartbeat() error = %v", err)
+	}
+	if got := mockPanel.HeartbeatReportCount(); got != before+1 {
+		t.Fatalf("HeartbeatReportCount = %d, want %d", got, before+1)
+	}
+
+	report, ok := mockPanel.LastHeartbeatReport()
+	if !ok {
+		t.Fatal("LastHeartbeatReport() ok = false, want true")
+	}
+	if report.NodeID != 1001 {
+		t.Fatalf("HeartbeatReport.NodeID = %d, want 1001", report.NodeID)
+	}
+	if report.AgentVersion != "test-version" {
+		t.Fatalf("HeartbeatReport.AgentVersion = %q, want test-version", report.AgentVersion)
+	}
+	if report.State != string(state.Running) {
+		t.Fatalf("HeartbeatReport.State = %q, want %q", report.State, state.Running)
+	}
+	if report.ConfigHash == "" {
+		t.Fatal("HeartbeatReport.ConfigHash is empty")
+	}
+}
+
+func TestRunHeartbeatLoopExitsWhenContextCanceled(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+	if err := app.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce() error = %v", err)
+	}
+
+	runLoopUntilCanceled(t, app.RunHeartbeatLoop)
+}
+
+func TestRunConfigSyncLoopExitsWhenContextCanceled(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+
+	runLoopUntilCanceled(t, app.RunConfigSyncLoop)
+}
+
+func TestRunUserSyncLoopExitsWhenContextCanceled(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+
+	runLoopUntilCanceled(t, app.RunUserSyncLoop)
+}
+
+func newMockBootstrapTestApp(t *testing.T) *App {
+	t.Helper()
+
+	setMockPanelEnv(t)
+	app, err := NewApp("test-version")
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	app.Logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+	return app
+}
+
+func runLoopUntilCanceled(t *testing.T, run func(context.Context, time.Duration)) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	panicCh := make(chan any, 1)
+
+	go func() {
+		defer close(done)
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				panicCh <- recovered
+			}
+		}()
+		run(ctx, 10*time.Millisecond)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("loop did not exit after context cancellation")
+	}
+
+	select {
+	case recovered := <-panicCh:
+		t.Fatalf("loop panicked: %v", recovered)
+	default:
 	}
 }
 

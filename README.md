@@ -14,6 +14,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 9 completed: VLESS + REALITY + Vision protocol builder centralized in `internal/protocol/vless`
 - Step 10 completed: SSPanel Node API v1 HTTP client skeleton
 - Step 11 completed: agent enrollment flow and node_token persistence
+- Step 12 completed: agent loop framework, heartbeat scheduler, and context-aware graceful shutdown
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -23,10 +24,13 @@ an Xray JSON config renderer, local agent state files, a users cache, runtime
 metadata, a process manager skeleton for an external Xray process, and a
 centralized VLESS + REALITY + Vision inbound builder, a SSPanel Node API v1 HTTP
 client layer, a one-shot local sync check, real-mode enrollment, and local
-`node_token` persistence. Real panel calls are implemented at the client layer
-and tested with `httptest`, but the local check flow still uses the mock panel.
-It does not start Xray from the local check flow or implement real Docker
-installer logic.
+`node_token` persistence. Step 12 adds cancellable loop helpers for config sync,
+user sync, and heartbeat reporting; `Run` performs an initial sync, starts a
+heartbeat scheduler and one conservative sync scheduler, and exits cleanly on
+context cancellation. Real panel calls are implemented at the client layer and
+tested with `httptest`, but the local check flow still uses the mock panel. It
+does not start Xray from the local check flow or implement real Docker installer
+logic.
 
 Target protocol:
 
@@ -54,6 +58,12 @@ $env:LOG_DIR=".xnode\logs"
 .\bin\xnode.exe --check
 ```
 
+One-shot sync without the check label is also available:
+
+```powershell
+.\bin\xnode.exe --once
+```
+
 The local mock check now creates:
 
 ```text
@@ -76,3 +86,9 @@ Step 11 wires real-panel enrollment into bootstrap. In real panel mode the agent
 loads `.xnode\data\token` or enrolls once with `ENROLL_TOKEN`, saves the returned
 `node_token`, and uses that token for later Node API calls. Mock mode remains
 token-free and does not require `ENROLL_TOKEN`.
+
+Step 12 is a safe loop framework only. Heartbeats report current runtime health
+metadata without requiring Xray to be running. Config and user loop helpers still
+reuse `SyncOnce` until their production responsibilities are split. Real Xray
+stats, traffic reporting, online IP parsing, and production panel rollout
+behavior are deferred to later steps.

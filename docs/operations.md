@@ -1,9 +1,10 @@
 # Operations
 
-This repository is currently at Step 9. It can render a local Xray JSON
+This repository is currently at Step 12. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
-process manager skeleton, and centralizes the VLESS inbound builder in
-`internal/protocol/vless`.
+process manager skeleton, centralizes the VLESS inbound builder in
+`internal/protocol/vless`, and has a cancellable agent loop framework for
+heartbeat and sync scheduling.
 
 Local Windows verification:
 
@@ -12,6 +13,7 @@ go test ./...
 go vet ./...
 go build -o .\bin\xnode.exe .\cmd\xnode
 .\bin\xnode.exe --version
+.\bin\xnode.exe --check
 ```
 
 The Dockerfile and compose file under `deploy/` are templates for later deployment work. They do not require an Xray binary yet, and Docker is not required for local Windows development.
@@ -49,3 +51,19 @@ files/process state, but protocol-specific inbound construction belongs in
 
 Additional protocols should be added later as separate protocol builders instead
 of being mixed into `internal/runtime/xray`.
+
+## Step 12 agent loop skeleton
+
+Step 12 adds context-aware loop helpers for config sync, user sync, and
+heartbeat reporting. `App.Run` performs one startup `SyncOnce`, starts the
+heartbeat scheduler and one conservative sync scheduler, then waits for context
+cancellation. On Ctrl+C or SIGTERM, the app sets state to `stopping` and exits
+cleanly.
+
+The current loops are safe skeletons. Config and user sync still reuse
+`SyncOnce`, heartbeat reporting reads local runtime health metadata, and mock
+mode remains token-free. The local `--check` command still calls `SyncOnce` once
+and exits; it does not start Xray, Docker, or any long-running scheduler.
+
+Real Xray stats, traffic reporting, online IP parsing, and production panel
+rollout behavior come later.
