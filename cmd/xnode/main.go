@@ -22,6 +22,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+		app.Logger = nil
 		if err := app.SyncOnce(context.Background()); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

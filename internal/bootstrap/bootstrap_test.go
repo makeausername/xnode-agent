@@ -17,6 +17,7 @@ import (
 	"github.com/makeausername/xnode-agent/internal/localstate"
 	"github.com/makeausername/xnode-agent/internal/panel/mock"
 	"github.com/makeausername/xnode-agent/internal/protocol/vless"
+	runtimepkg "github.com/makeausername/xnode-agent/internal/runtime"
 	"github.com/makeausername/xnode-agent/internal/secrets"
 	"github.com/makeausername/xnode-agent/internal/state"
 	"github.com/makeausername/xnode-agent/pkg/nodeapi"
@@ -88,6 +89,142 @@ func TestSyncOnceSetsStateRunning(t *testing.T) {
 	}
 	if got := app.State.Get(); got != state.Running {
 		t.Fatalf("state = %s, want %s", got, state.Running)
+	}
+}
+
+func TestSyncOnceSkipsApplyWhenConfigAndUsersUnchanged(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+	runtime := newCountingRuntime(app.Config.StatePaths().XrayJSON)
+	app.Runtime = runtime
+
+	first, err := app.SyncOnceResult(context.Background())
+	if err != nil {
+		t.Fatalf("first SyncOnceResult() error = %v", err)
+	}
+	if !first.Applied {
+		t.Fatal("first SyncOnceResult().Applied = false, want true")
+	}
+	if runtime.ApplyCount() != 1 {
+		t.Fatalf("ApplyCount after first sync = %d, want 1", runtime.ApplyCount())
+	}
+	if _, err := os.Stat(app.Config.StatePaths().XrayJSON); err != nil {
+		t.Fatalf("Stat(xray.json) error = %v", err)
+	}
+
+	firstState, err := localstate.LoadRuntimeState(app.Config.StatePaths().RuntimeJSON)
+	if err != nil {
+		t.Fatalf("LoadRuntimeState() after first sync error = %v", err)
+	}
+
+	second, err := app.SyncOnceResult(context.Background())
+	if err != nil {
+		t.Fatalf("second SyncOnceResult() error = %v", err)
+	}
+	if second.Applied {
+		t.Fatal("second SyncOnceResult().Applied = true, want false")
+	}
+	if second.ConfigChanged {
+		t.Fatal("second SyncOnceResult().ConfigChanged = true, want false")
+	}
+	if second.UsersChanged {
+		t.Fatal("second SyncOnceResult().UsersChanged = true, want false")
+	}
+	if runtime.ApplyCount() != 1 {
+		t.Fatalf("ApplyCount after second sync = %d, want 1", runtime.ApplyCount())
+	}
+	if got := app.State.Get(); got != state.Running {
+		t.Fatalf("state after no-op sync = %s, want %s", got, state.Running)
+	}
+
+	secondState, err := localstate.LoadRuntimeState(app.Config.StatePaths().RuntimeJSON)
+	if err != nil {
+		t.Fatalf("LoadRuntimeState() after second sync error = %v", err)
+	}
+	if secondState.LastApplyAt != firstState.LastApplyAt {
+		t.Fatalf("LastApplyAt after no-op sync = %d, want %d", secondState.LastApplyAt, firstState.LastApplyAt)
+	}
+
+	mockPanel, ok := app.Panel.(*mock.Client)
+	if !ok {
+		t.Fatalf("Panel type = %T, want *mock.Client", app.Panel)
+	}
+	report, ok := mockPanel.LastHeartbeatReport()
+	if !ok {
+		t.Fatal("LastHeartbeatReport() ok = false, want true")
+	}
+	if report.ConfigHash != second.ConfigHash {
+		t.Fatalf("Heartbeat ConfigHash = %q, want %q", report.ConfigHash, second.ConfigHash)
+	}
+}
+
+func TestSyncOnceRebuildsMissingUsersCacheWithoutApply(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+	runtime := newCountingRuntime(app.Config.StatePaths().XrayJSON)
+	app.Runtime = runtime
+
+	if _, err := app.SyncOnceResult(context.Background()); err != nil {
+		t.Fatalf("first SyncOnceResult() error = %v", err)
+	}
+	if err := os.Remove(app.Config.StatePaths().UsersCacheJSON); err != nil {
+		t.Fatalf("Remove(users.cache.json) error = %v", err)
+	}
+
+	result, err := app.SyncOnceResult(context.Background())
+	if err != nil {
+		t.Fatalf("second SyncOnceResult() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatal("SyncOnceResult().Applied = true, want false")
+	}
+	if runtime.ApplyCount() != 1 {
+		t.Fatalf("ApplyCount = %d, want 1", runtime.ApplyCount())
+	}
+
+	cache, err := localstate.LoadUsersCache(app.Config.StatePaths().UsersCacheJSON)
+	if err != nil {
+		t.Fatalf("LoadUsersCache() error = %v", err)
+	}
+	if len(cache.Users) == 0 {
+		t.Fatal("rebuilt users.cache.json users is empty")
+	}
+	if cache.UsersHash != result.UsersHash {
+		t.Fatalf("rebuilt users hash = %q, want %q", cache.UsersHash, result.UsersHash)
+	}
+	if cache.UsersETag == "" {
+		t.Fatal("rebuilt users.cache.json users_etag is empty")
+	}
+}
+
+func TestSyncOnceAppliesWhenXrayConfigMissingEvenWhenHashesMatch(t *testing.T) {
+	app := newMockBootstrapTestApp(t)
+	runtime := newCountingRuntime(app.Config.StatePaths().XrayJSON)
+	app.Runtime = runtime
+
+	if _, err := app.SyncOnceResult(context.Background()); err != nil {
+		t.Fatalf("first SyncOnceResult() error = %v", err)
+	}
+	if err := os.Remove(app.Config.StatePaths().XrayJSON); err != nil {
+		t.Fatalf("Remove(xray.json) error = %v", err)
+	}
+
+	result, err := app.SyncOnceResult(context.Background())
+	if err != nil {
+		t.Fatalf("second SyncOnceResult() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("SyncOnceResult().Applied = false, want true when xray.json is missing")
+	}
+	if result.ConfigChanged {
+		t.Fatal("SyncOnceResult().ConfigChanged = true, want false")
+	}
+	if result.UsersChanged {
+		t.Fatal("SyncOnceResult().UsersChanged = true, want false")
+	}
+	if runtime.ApplyCount() != 2 {
+		t.Fatalf("ApplyCount = %d, want 2", runtime.ApplyCount())
+	}
+	if _, err := os.Stat(app.Config.StatePaths().XrayJSON); err != nil {
+		t.Fatalf("Stat(xray.json) after reapply error = %v", err)
 	}
 }
 
@@ -415,6 +552,48 @@ func runLoopUntilCanceled(t *testing.T, run func(context.Context, time.Duration)
 		t.Fatalf("loop panicked: %v", recovered)
 	default:
 	}
+}
+
+type countingRuntime struct {
+	configPath string
+	applyCount int
+	health     runtimepkg.Health
+}
+
+func newCountingRuntime(configPath string) *countingRuntime {
+	return &countingRuntime{
+		configPath: configPath,
+	}
+}
+
+func (r *countingRuntime) Start(ctx context.Context) error {
+	return nil
+}
+
+func (r *countingRuntime) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (r *countingRuntime) Health(ctx context.Context) runtimepkg.Health {
+	return r.health
+}
+
+func (r *countingRuntime) ApplyPlan(ctx context.Context, plan runtimepkg.RuntimePlan) error {
+	r.applyCount++
+	r.health.ConfigHash = plan.Hash
+
+	if err := os.MkdirAll(filepath.Dir(r.configPath), 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(r.configPath, []byte("{\"applied\":true}\n"), 0600)
+}
+
+func (r *countingRuntime) QueryStats(ctx context.Context, reset bool) ([]nodeapi.UserTraffic, error) {
+	return []nodeapi.UserTraffic{}, nil
+}
+
+func (r *countingRuntime) ApplyCount() int {
+	return r.applyCount
 }
 
 func setMockPanelEnv(t *testing.T) (string, string) {

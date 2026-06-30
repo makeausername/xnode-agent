@@ -40,6 +40,7 @@ type UsersCache struct {
 	Version   int                `json:"version"`
 	Users     []nodeapi.UserInfo `json:"users"`
 	UsersHash string             `json:"users_hash"`
+	UsersETag string             `json:"users_etag,omitempty"`
 	UpdatedAt int64              `json:"updated_at"`
 }
 

@@ -13,7 +13,7 @@ const (
 	DefaultNodeID = int64(1)
 	DefaultDomain = "mock.xnode.local"
 
-	usersETag       = "mock-users-v1"
+	usersETag       = `W/"mock-users-1"`
 	detectRulesETag = "mock-detect-rules-v1"
 )
 
@@ -62,6 +62,9 @@ func NewClientForNode(nodeID int64, domain string) *Client {
 }
 
 func (c *Client) Enroll(ctx context.Context, req nodeapi.EnrollRequest) (nodeapi.EnrollResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	nodeID := req.NodeID
 	if nodeID == 0 {
 		nodeID = c.config.NodeID
@@ -83,15 +86,27 @@ func (c *Client) Enroll(ctx context.Context, req nodeapi.EnrollRequest) (nodeapi
 }
 
 func (c *Client) GetConfig(ctx context.Context) (nodeapi.NodeConfig, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	return c.config, nil
 }
 
 func (c *Client) GetUsers(ctx context.Context, etag string) ([]nodeapi.UserInfo, string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if etag == usersETag {
+		return nil, usersETag, nil
+	}
 	users := append([]nodeapi.UserInfo(nil), c.users...)
 	return users, usersETag, nil
 }
 
 func (c *Client) GetDetectRules(ctx context.Context, etag string) ([]nodeapi.DetectRule, string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	rules := append([]nodeapi.DetectRule(nil), c.rules...)
 	return rules, detectRulesETag, nil
 }

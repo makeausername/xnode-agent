@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -37,6 +38,14 @@ type App struct {
 	lastNodeID       int64
 	lastConfigHash   string
 	lastReportConfig nodeapi.ReportConfig
+}
+
+type SyncResult struct {
+	ConfigHash    string
+	UsersHash     string
+	UsersChanged  bool
+	ConfigChanged bool
+	Applied       bool
 }
 
 func NewApp(version string) (*App, error) {
@@ -117,46 +126,101 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) SyncOnce(ctx context.Context) error {
+	_, err := a.SyncOnceResult(ctx)
+	return err
+}
+
+func (a *App) SyncOnceResult(ctx context.Context) (SyncResult, error) {
 	a.syncMu.Lock()
 	defer a.syncMu.Unlock()
 
+	result := SyncResult{}
 	a.State.Set(state.Configured)
 
 	if err := a.EnsureNodeToken(ctx); err != nil {
-		return a.degrade("ensure node token", err)
+		return result, a.degrade("ensure node token", err)
+	}
+
+	paths := a.Config.StatePaths()
+	previousRuntime, hasRuntimeState, err := loadPreviousRuntimeState(paths.RuntimeJSON)
+	if err != nil {
+		return result, a.degrade("load previous runtime state", err)
+	}
+
+	previousUsersCache, hasUsersCache, err := loadPreviousUsersCache(paths.UsersCacheJSON)
+	if err != nil {
+		return result, a.degrade("load previous users cache", err)
 	}
 
 	nodeConfig, err := a.Panel.GetConfig(ctx)
 	if err != nil {
-		return a.degrade("get panel config", err)
-	}
-
-	users, _, err := a.Panel.GetUsers(ctx, "")
-	if err != nil {
-		return a.degrade("get panel users", err)
-	}
-
-	rules, _, err := a.Panel.GetDetectRules(ctx, "")
-	if err != nil {
-		return a.degrade("get detect rules", err)
+		return result, a.degrade("get panel config", err)
 	}
 
 	configHash, err := localstate.HashNodeConfig(nodeConfig)
 	if err != nil {
-		return a.degrade("hash node config", err)
+		return result, a.degrade("hash node config", err)
+	}
+	result.ConfigHash = configHash
+	result.ConfigChanged = !hasRuntimeState || previousRuntime.LastConfigHash != configHash
+
+	previousUsersETag := ""
+	if hasUsersCache {
+		previousUsersETag = previousUsersCache.UsersETag
+	}
+	users, usersETag, err := a.Panel.GetUsers(ctx, previousUsersETag)
+	if err != nil {
+		return result, a.degrade("get panel users", err)
+	}
+	if usersETag == "" {
+		usersETag = previousUsersETag
 	}
 
-	usersHash, err := localstate.HashUsers(users)
+	usersCacheChanged := !hasUsersCache
+	usersHash := ""
+	if users == nil {
+		if !hasUsersCache {
+			return result, a.degrade("get panel users", errors.New("panel returned not modified without users cache"))
+		}
+		users = append([]nodeapi.UserInfo(nil), previousUsersCache.Users...)
+		usersHash = previousUsersCache.UsersHash
+		if usersHash == "" {
+			usersHash, err = localstate.HashUsers(users)
+			if err != nil {
+				return result, a.degrade("hash cached users", err)
+			}
+		}
+		result.UsersChanged = false
+	} else {
+		users = append([]nodeapi.UserInfo(nil), users...)
+		usersHash, err = localstate.HashUsers(users)
+		if err != nil {
+			return result, a.degrade("hash users", err)
+		}
+		result.UsersChanged = !hasRuntimeState || previousRuntime.LastUsersHash != usersHash
+		usersCacheChanged = usersCacheChanged ||
+			result.UsersChanged ||
+			(usersETag != "" && usersETag != previousUsersCache.UsersETag)
+	}
+	result.UsersHash = usersHash
+
+	rules, _, err := a.Panel.GetDetectRules(ctx, "")
 	if err != nil {
-		return a.degrade("hash users", err)
+		return result, a.degrade("get detect rules", err)
 	}
 
 	realitySecret, _, err := secrets.EnsureRealitySecret(a.Secrets)
 	if err != nil {
-		return a.degrade("ensure reality secret", err)
+		return result, a.degrade("ensure reality secret", err)
 	}
 
-	if a.Runtime != nil {
+	xrayExists, err := fileExists(paths.XrayJSON)
+	if err != nil {
+		return result, a.degrade("check xray config", err)
+	}
+
+	shouldApply := a.Runtime != nil && (result.ConfigChanged || result.UsersChanged || !xrayExists)
+	if shouldApply {
 		plan := runtime.RuntimePlan{
 			NodeConfig: nodeConfig,
 			Users:      users,
@@ -165,23 +229,24 @@ func (a *App) SyncOnce(ctx context.Context) error {
 			Hash:       configHash,
 		}
 		if err := a.Runtime.ApplyPlan(ctx, plan); err != nil {
-			return a.degrade("apply runtime plan", err)
+			return result, a.degrade("apply runtime plan", err)
 		}
+		result.Applied = true
 	}
 
 	a.State.Set(state.Running)
 	a.setLastSyncSnapshot(nodeConfig.NodeID, configHash, nodeConfig.Report)
 
-	if err := a.saveLocalState(ctx, nodeConfig, users, configHash, usersHash); err != nil {
-		return a.degrade("save local state", err)
+	if err := a.saveLocalState(ctx, nodeConfig, users, usersETag, usersCacheChanged, configHash, usersHash, previousRuntime, result.Applied); err != nil {
+		return result, a.degrade("save local state", err)
 	}
 
 	if err := a.Panel.ReportRuntime(ctx, a.runtimeReport(nodeConfig.NodeID, configHash, realitySecret)); err != nil {
-		return a.degrade("report runtime", err)
+		return result, a.degrade("report runtime", err)
 	}
 
 	if err := a.ReportHeartbeat(ctx); err != nil {
-		return a.degrade("report heartbeat", err)
+		return result, a.degrade("report heartbeat", err)
 	}
 
 	a.logInfo(
@@ -192,13 +257,16 @@ func (a *App) SyncOnce(ctx context.Context) error {
 		"rule_count", len(rules),
 		"profile_name", nodeConfig.Profile.Name,
 		"state", a.State.Get(),
+		"config_changed", result.ConfigChanged,
+		"users_changed", result.UsersChanged,
+		"applied", result.Applied,
 		"component", "bootstrap",
 	)
 
-	return nil
+	return result, nil
 }
 
-func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig, users []nodeapi.UserInfo, configHash string, usersHash string) error {
+func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig, users []nodeapi.UserInfo, usersETag string, saveUsersCache bool, configHash string, usersHash string, previousRuntime localstate.RuntimeState, applied bool) error {
 	paths := a.Config.StatePaths()
 	now := time.Now().Unix()
 	createdAt := now
@@ -219,19 +287,26 @@ func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig,
 		return err
 	}
 
-	usersCache := localstate.UsersCache{
-		Version:   1,
-		Users:     append([]nodeapi.UserInfo(nil), users...),
-		UsersHash: usersHash,
-		UpdatedAt: now,
-	}
-	if err := localstate.SaveUsersCache(paths.UsersCacheJSON, usersCache); err != nil {
-		return err
+	if saveUsersCache {
+		usersCache := localstate.UsersCache{
+			Version:   1,
+			Users:     append([]nodeapi.UserInfo(nil), users...),
+			UsersHash: usersHash,
+			UsersETag: usersETag,
+			UpdatedAt: now,
+		}
+		if err := localstate.SaveUsersCache(paths.UsersCacheJSON, usersCache); err != nil {
+			return err
+		}
 	}
 
 	health := runtime.Health{}
 	if a.Runtime != nil {
 		health = a.Runtime.Health(ctx)
+	}
+	lastApplyAt := previousRuntime.LastApplyAt
+	if applied {
+		lastApplyAt = now
 	}
 	runtimeState := localstate.RuntimeState{
 		CoreVersion:    health.CoreVersion,
@@ -239,7 +314,7 @@ func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig,
 		LastConfigHash: configHash,
 		LastUsersHash:  usersHash,
 		LastError:      health.LastError,
-		LastApplyAt:    now,
+		LastApplyAt:    lastApplyAt,
 		UpdatedAt:      now,
 	}
 	if err := localstate.SaveRuntimeState(paths.RuntimeJSON, runtimeState); err != nil {
@@ -247,6 +322,41 @@ func (a *App) saveLocalState(ctx context.Context, nodeConfig nodeapi.NodeConfig,
 	}
 
 	return nil
+}
+
+func loadPreviousRuntimeState(path string) (localstate.RuntimeState, bool, error) {
+	runtimeState, err := localstate.LoadRuntimeState(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return localstate.RuntimeState{}, false, nil
+		}
+		return localstate.RuntimeState{}, false, err
+	}
+	return runtimeState, true, nil
+}
+
+func loadPreviousUsersCache(path string) (localstate.UsersCache, bool, error) {
+	usersCache, err := localstate.LoadUsersCache(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return localstate.UsersCache{}, false, nil
+		}
+		return localstate.UsersCache{}, false, err
+	}
+	return usersCache, true, nil
+}
+
+func fileExists(path string) (bool, error) {
+	if path == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *App) runtimeReport(nodeID int64, configHash string, realitySecret secrets.RealitySecret) nodeapi.RuntimeReport {

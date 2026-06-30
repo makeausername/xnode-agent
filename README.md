@@ -15,6 +15,7 @@ Agent for `github.com/makeausername/xnode-agent`.
 - Step 10 completed: SSPanel Node API v1 HTTP client skeleton
 - Step 11 completed: agent enrollment flow and node_token persistence
 - Step 12 completed: agent loop framework, heartbeat scheduler, and context-aware graceful shutdown
+- Step 13 completed: ETag/hash-based user sync optimization and no-op runtime apply
 
 The current stage provides the project structure, initial command entrypoint,
 DTO placeholders, state/bootstrap stubs, documentation, CI, deployment
@@ -27,10 +28,12 @@ client layer, a one-shot local sync check, real-mode enrollment, and local
 `node_token` persistence. Step 12 adds cancellable loop helpers for config sync,
 user sync, and heartbeat reporting; `Run` performs an initial sync, starts a
 heartbeat scheduler and one conservative sync scheduler, and exits cleanly on
-context cancellation. Real panel calls are implemented at the client layer and
-tested with `httptest`, but the local check flow still uses the mock panel. It
-does not start Xray from the local check flow or implement real Docker installer
-logic.
+context cancellation. Step 13 adds ETag/hash-based users sync, persists the
+users ETag in `users.cache.json`, and skips `Runtime.ApplyPlan` when the node
+config, users hash, and existing `xray.json` are unchanged. Real panel calls are
+implemented at the client layer and tested with `httptest`, but the local check
+flow still uses the mock panel. It does not start Xray from the local check flow
+or implement real Docker installer logic.
 
 Target protocol:
 
@@ -89,6 +92,11 @@ token-free and does not require `ENROLL_TOKEN`.
 
 Step 12 is a safe loop framework only. Heartbeats report current runtime health
 metadata without requiring Xray to be running. Config and user loop helpers still
-reuse `SyncOnce` until their production responsibilities are split. Real Xray
-stats, traffic reporting, online IP parsing, and production panel rollout
-behavior are deferred to later steps.
+reuse `SyncOnce` until their production responsibilities are split.
+
+Step 13 optimizes that shared `SyncOnce` path. The agent sends the cached users
+ETag when available, falls back to `users.cache.json` on a not-modified users
+response, compares users/config hashes against `runtime.json`, and avoids
+rewriting `xray.json` when nothing changed. Real Xray stats, traffic reporting,
+online IP parsing, and production panel rollout behavior are deferred to later
+steps.

@@ -75,6 +75,7 @@ func TestSaveLoadUsersCache(t *testing.T) {
 			},
 		},
 		UsersHash: "users-hash",
+		UsersETag: `W/"users-v1"`,
 		UpdatedAt: 1700000100,
 	}
 
@@ -86,7 +87,7 @@ func TestSaveLoadUsersCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadUsersCache() error = %v", err)
 	}
-	if got.Version != cache.Version || got.UsersHash != cache.UsersHash || got.UpdatedAt != cache.UpdatedAt {
+	if got.Version != cache.Version || got.UsersHash != cache.UsersHash || got.UsersETag != cache.UsersETag || got.UpdatedAt != cache.UpdatedAt {
 		t.Fatalf("LoadUsersCache() = %#v, want %#v", got, cache)
 	}
 	if len(got.Users) != len(cache.Users) || got.Users[0] != cache.Users[0] {

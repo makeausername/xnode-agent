@@ -39,6 +39,29 @@ func TestGetUsersReturnsEnabledUser(t *testing.T) {
 	t.Fatal("GetUsers() returned no enabled users")
 }
 
+func TestGetUsersWithMatchingETagReturnsNotModified(t *testing.T) {
+	client := NewClient()
+
+	_, etag, err := client.GetUsers(context.Background(), "")
+	if err != nil {
+		t.Fatalf("GetUsers() error = %v", err)
+	}
+	if etag == "" {
+		t.Fatal("GetUsers() etag is empty")
+	}
+
+	users, nextETag, err := client.GetUsers(context.Background(), etag)
+	if err != nil {
+		t.Fatalf("GetUsers(etag) error = %v", err)
+	}
+	if users != nil {
+		t.Fatalf("GetUsers(etag) users = %#v, want nil", users)
+	}
+	if nextETag != etag {
+		t.Fatalf("GetUsers(etag) etag = %q, want %q", nextETag, etag)
+	}
+}
+
 func TestReportMethodsReturnNil(t *testing.T) {
 	client := NewClient()
 	ctx := context.Background()

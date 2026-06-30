@@ -1,10 +1,11 @@
 # Operations
 
-This repository is currently at Step 12. It can render a local Xray JSON
+This repository is currently at Step 13. It can render a local Xray JSON
 configuration for VLESS + REALITY + Vision, includes a guarded Xray runtime
 process manager skeleton, centralizes the VLESS inbound builder in
 `internal/protocol/vless`, and has a cancellable agent loop framework for
-heartbeat and sync scheduling.
+heartbeat and sync scheduling. The sync path now uses users ETag/cache metadata
+and config/users hashes to skip runtime apply work when nothing changed.
 
 Local Windows verification:
 
@@ -37,10 +38,11 @@ external Xray process with `xray run -config <xray.json>`. The process manager
 validates that the rendered config file exists and contains valid JSON before it
 tries to start anything.
 
-The current local `--check` flow still renders config only through
-`Runtime.ApplyPlan`. It does not call `Runtime.Start`, does not start the Xray
-process, and does not run Docker. Real Xray process startup will be tested later
-on a Linux server with an installed Xray binary.
+The current local `--check` flow may render config through `Runtime.ApplyPlan`
+when local hashes changed or `xray.json` is missing. It does not call
+`Runtime.Start`, does not start the Xray process, and does not run Docker. Real
+Xray process startup will be tested later on a Linux server with an installed
+Xray binary.
 
 ## Step 9 protocol builder boundary
 
@@ -67,3 +69,15 @@ and exits; it does not start Xray, Docker, or any long-running scheduler.
 
 Real Xray stats, traffic reporting, online IP parsing, and production panel
 rollout behavior come later.
+
+## Step 13 users sync optimization
+
+`SyncOnce` loads `runtime.json` and `users.cache.json` before fetching panel
+state. When a cached users ETag exists, it is sent with the users request. A
+not-modified users response reuses `users.cache.json`, which is also the restart
+fallback for the last usable users list.
+
+Unchanged users and unchanged node config should not trigger
+`Runtime.ApplyPlan`, so `xray.json` is not rewritten just because a sync loop
+ran. The agent still applies the runtime plan if the config hash changed, the
+users hash changed, or `xray.json` is missing.
