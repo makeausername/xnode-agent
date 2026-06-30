@@ -169,6 +169,18 @@ func TestApplyPlanWritesConfigAndUpdatesHealthHash(t *testing.T) {
 	if health.ConfigHash != "hash-123" {
 		t.Fatalf("health.ConfigHash = %q, want hash-123", health.ConfigHash)
 	}
+	if health.Running {
+		t.Fatal("health.Running = true, want false after ApplyPlan")
+	}
+	if health.PID != 0 {
+		t.Fatalf("health.PID = %d, want 0 after ApplyPlan", health.PID)
+	}
+	if health.LastStartAt != 0 {
+		t.Fatalf("health.LastStartAt = %d, want 0 after ApplyPlan", health.LastStartAt)
+	}
+	if runtime.process != nil {
+		t.Fatal("runtime.process is not nil, ApplyPlan must not start Xray")
+	}
 }
 
 func decodeRenderedConfig(t *testing.T, data []byte) renderedConfig {
