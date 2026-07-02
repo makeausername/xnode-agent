@@ -3,6 +3,7 @@ package xray
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,11 +23,12 @@ type renderedConfig struct {
 		Port     int    `json:"port"`
 		Protocol string `json:"protocol"`
 		Settings struct {
-			Clients []struct {
+			Users []struct {
 				ID    string `json:"id"`
+				Level int    `json:"level"`
 				Email string `json:"email"`
 				Flow  string `json:"flow"`
-			} `json:"clients"`
+			} `json:"users"`
 			Decryption string `json:"decryption"`
 		} `json:"settings"`
 		StreamSettings struct {
@@ -53,6 +55,7 @@ func TestRenderConfigReturnsValidJSONAndMapsUsers(t *testing.T) {
 	if !json.Valid(data) {
 		t.Fatalf("RenderConfig() returned invalid JSON: %s", data)
 	}
+	assertRenderedVLESSSettings(t, data)
 
 	rendered := decodeRenderedConfig(t, data)
 	if len(rendered.Inbounds) != 1 {
@@ -67,18 +70,24 @@ func TestRenderConfigReturnsValidJSONAndMapsUsers(t *testing.T) {
 		t.Fatalf("inbound protocol = %q, want vless", inbound.Protocol)
 	}
 
-	clients := inbound.Settings.Clients
-	if len(clients) != 1 {
-		t.Fatalf("len(clients) = %d, want 1 enabled user", len(clients))
+	users := inbound.Settings.Users
+	if len(users) != 1 {
+		t.Fatalf("len(users) = %d, want 1 enabled user", len(users))
 	}
-	if clients[0].ID != "11111111-1111-4111-8111-111111111111" {
-		t.Fatalf("client id = %q", clients[0].ID)
+	if users[0].ID != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("user id = %q", users[0].ID)
 	}
-	if clients[0].Email != "user-1@panel.local" {
-		t.Fatalf("client email = %q, want stable panel-local email", clients[0].Email)
+	if users[0].Level != 0 {
+		t.Fatalf("user level = %d, want 0", users[0].Level)
 	}
-	if clients[0].Flow != "xtls-rprx-vision" {
-		t.Fatalf("client flow = %q, want xtls-rprx-vision", clients[0].Flow)
+	if users[0].Email != "user-1@panel.local" {
+		t.Fatalf("user email = %q, want stable panel-local email", users[0].Email)
+	}
+	if users[0].Flow != "xtls-rprx-vision" {
+		t.Fatalf("user flow = %q, want xtls-rprx-vision", users[0].Flow)
+	}
+	if inbound.Settings.Decryption != "none" {
+		t.Fatalf("decryption = %q, want none", inbound.Settings.Decryption)
 	}
 
 	reality := inbound.StreamSettings.RealitySettings
@@ -306,6 +315,68 @@ func decodeRenderedConfig(t *testing.T, data []byte) renderedConfig {
 		t.Fatalf("Unmarshal(rendered config) error = %v", err)
 	}
 	return config
+}
+
+func assertRenderedVLESSSettings(t *testing.T, data []byte) {
+	t.Helper()
+
+	if strings.Contains(string(data), `"clients"`) {
+		t.Fatalf("rendered xray config contains deprecated settings.clients: %s", data)
+	}
+
+	var raw struct {
+		Inbounds []struct {
+			Protocol string         `json:"protocol"`
+			Settings map[string]any `json:"settings"`
+		} `json:"inbounds"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Unmarshal(raw rendered config) error = %v", err)
+	}
+
+	for _, inbound := range raw.Inbounds {
+		if inbound.Protocol != "vless" {
+			continue
+		}
+		if _, ok := inbound.Settings["clients"]; ok {
+			t.Fatal("vless settings includes deprecated clients key")
+		}
+		rawUsers, ok := inbound.Settings["users"]
+		if !ok {
+			t.Fatal("vless settings missing users key")
+		}
+		users, ok := rawUsers.([]any)
+		if !ok {
+			t.Fatalf("vless settings.users type = %T, want array", rawUsers)
+		}
+		if len(users) != 1 {
+			t.Fatalf("len(settings.users) = %d, want 1", len(users))
+		}
+		user, ok := users[0].(map[string]any)
+		if !ok {
+			t.Fatalf("settings.users[0] type = %T, want object", users[0])
+		}
+		assertRawSetting(t, user, "id", "11111111-1111-4111-8111-111111111111")
+		assertRawSetting(t, user, "email", "user-1@panel.local")
+		assertRawSetting(t, user, "flow", "xtls-rprx-vision")
+		assertRawSetting(t, user, "level", float64(0))
+		assertRawSetting(t, inbound.Settings, "decryption", "none")
+		return
+	}
+
+	t.Fatal("rendered config missing vless inbound")
+}
+
+func assertRawSetting(t *testing.T, settings map[string]any, key string, want any) {
+	t.Helper()
+
+	if got := settings[key]; got != want {
+		t.Fatalf("%s = %s, want %s", key, formatRawValue(got), formatRawValue(want))
+	}
+}
+
+func formatRawValue(value any) string {
+	return fmt.Sprintf("%#v", value)
 }
 
 func testPlan() runtimex.RuntimePlan {

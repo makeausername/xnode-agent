@@ -56,21 +56,24 @@ func TestBuildInboundMapsEnabledUsersAndRealitySettings(t *testing.T) {
 		t.Fatalf("decryption = %q, want none", inbound.Settings.Decryption)
 	}
 
-	clients := inbound.Settings.Clients
-	if len(clients) != 1 {
-		t.Fatalf("len(clients) = %d, want only enabled users", len(clients))
+	users := inbound.Settings.Users
+	if len(users) != 1 {
+		t.Fatalf("len(users) = %d, want only enabled users", len(users))
 	}
-	if clients[0].ID != "11111111-1111-4111-8111-111111111111" {
-		t.Fatalf("client id = %q", clients[0].ID)
+	if users[0].ID != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("user id = %q", users[0].ID)
 	}
-	if clients[0].Email != "user-10001@panel.local" {
-		t.Fatalf("client email = %q, want stable panel-local email", clients[0].Email)
+	if users[0].Level != 0 {
+		t.Fatalf("user level = %d, want 0", users[0].Level)
 	}
-	if clients[0].Email == "do-not-use@example.com" {
-		t.Fatalf("client email used user.Email = %q", clients[0].Email)
+	if users[0].Email != "user-10001@panel.local" {
+		t.Fatalf("user email = %q, want stable panel-local email", users[0].Email)
 	}
-	if clients[0].Flow != DefaultFlow {
-		t.Fatalf("client flow = %q, want %q", clients[0].Flow, DefaultFlow)
+	if users[0].Email == "do-not-use@example.com" {
+		t.Fatalf("user email used user.Email = %q", users[0].Email)
+	}
+	if users[0].Flow != DefaultFlow {
+		t.Fatalf("user flow = %q, want %q", users[0].Flow, DefaultFlow)
 	}
 
 	if inbound.StreamSettings.Network != DefaultNetwork {
