@@ -19,11 +19,11 @@ type Inbound struct {
 }
 
 type InboundSettings struct {
-	Users      []User `json:"users"`
-	Decryption string `json:"decryption"`
+	Clients    []Client `json:"clients"`
+	Decryption string   `json:"decryption"`
 }
 
-type User struct {
+type Client struct {
 	ID    string `json:"id"`
 	Level int    `json:"level"`
 	Email string `json:"email"`
@@ -57,7 +57,7 @@ func BuildInbound(config nodeapi.NodeConfig, users []nodeapi.UserInfo, secret se
 		return Inbound{}, err
 	}
 
-	inboundUsers, err := buildUsers(config, users)
+	clients, err := buildClients(config, users)
 	if err != nil {
 		return Inbound{}, err
 	}
@@ -68,7 +68,7 @@ func BuildInbound(config nodeapi.NodeConfig, users []nodeapi.UserInfo, secret se
 		Port:     config.Profile.Port,
 		Protocol: strings.TrimSpace(config.Profile.Protocol),
 		Settings: InboundSettings{
-			Users:      inboundUsers,
+			Clients:    clients,
 			Decryption: "none",
 		},
 		StreamSettings: StreamSettings{
@@ -93,8 +93,8 @@ func StableUserEmail(userID int64) string {
 	return fmt.Sprintf("user-%d@panel.local", userID)
 }
 
-func buildUsers(config nodeapi.NodeConfig, users []nodeapi.UserInfo) ([]User, error) {
-	inboundUsers := make([]User, 0, len(users))
+func buildClients(config nodeapi.NodeConfig, users []nodeapi.UserInfo) ([]Client, error) {
+	clients := make([]Client, 0, len(users))
 	flow := strings.TrimSpace(config.Profile.Flow)
 
 	for _, user := range users {
@@ -105,7 +105,7 @@ func buildUsers(config nodeapi.NodeConfig, users []nodeapi.UserInfo) ([]User, er
 			return nil, fmt.Errorf("enabled user %d uuid is required", user.ID)
 		}
 
-		inboundUsers = append(inboundUsers, User{
+		clients = append(clients, Client{
 			ID:    strings.TrimSpace(user.UUID),
 			Level: 0,
 			Email: StableUserEmail(user.ID),
@@ -113,7 +113,7 @@ func buildUsers(config nodeapi.NodeConfig, users []nodeapi.UserInfo) ([]User, er
 		})
 	}
 
-	return inboundUsers, nil
+	return clients, nil
 }
 
 func cleanNonEmptyStrings(values []string) []string {

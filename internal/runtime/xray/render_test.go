@@ -23,12 +23,12 @@ type renderedConfig struct {
 		Port     int    `json:"port"`
 		Protocol string `json:"protocol"`
 		Settings struct {
-			Users []struct {
+			Clients []struct {
 				ID    string `json:"id"`
 				Level int    `json:"level"`
 				Email string `json:"email"`
 				Flow  string `json:"flow"`
-			} `json:"users"`
+			} `json:"clients"`
 			Decryption string `json:"decryption"`
 		} `json:"settings"`
 		StreamSettings struct {
@@ -70,21 +70,21 @@ func TestRenderConfigReturnsValidJSONAndMapsUsers(t *testing.T) {
 		t.Fatalf("inbound protocol = %q, want vless", inbound.Protocol)
 	}
 
-	users := inbound.Settings.Users
-	if len(users) != 1 {
-		t.Fatalf("len(users) = %d, want 1 enabled user", len(users))
+	clients := inbound.Settings.Clients
+	if len(clients) != 1 {
+		t.Fatalf("len(clients) = %d, want 1 enabled user", len(clients))
 	}
-	if users[0].ID != "11111111-1111-4111-8111-111111111111" {
-		t.Fatalf("user id = %q", users[0].ID)
+	if clients[0].ID != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("client id = %q", clients[0].ID)
 	}
-	if users[0].Level != 0 {
-		t.Fatalf("user level = %d, want 0", users[0].Level)
+	if clients[0].Level != 0 {
+		t.Fatalf("client level = %d, want 0", clients[0].Level)
 	}
-	if users[0].Email != "user-1@panel.local" {
-		t.Fatalf("user email = %q, want stable panel-local email", users[0].Email)
+	if clients[0].Email != "user-1@panel.local" {
+		t.Fatalf("client email = %q, want stable panel-local email", clients[0].Email)
 	}
-	if users[0].Flow != "xtls-rprx-vision" {
-		t.Fatalf("user flow = %q, want xtls-rprx-vision", users[0].Flow)
+	if clients[0].Flow != "xtls-rprx-vision" {
+		t.Fatalf("client flow = %q, want xtls-rprx-vision", clients[0].Flow)
 	}
 	if inbound.Settings.Decryption != "none" {
 		t.Fatalf("decryption = %q, want none", inbound.Settings.Decryption)
@@ -320,8 +320,8 @@ func decodeRenderedConfig(t *testing.T, data []byte) renderedConfig {
 func assertRenderedVLESSSettings(t *testing.T, data []byte) {
 	t.Helper()
 
-	if strings.Contains(string(data), `"clients"`) {
-		t.Fatalf("rendered xray config contains deprecated settings.clients: %s", data)
+	if strings.Contains(string(data), `"users"`) {
+		t.Fatalf("rendered xray config contains unsupported settings.users: %s", data)
 	}
 
 	var raw struct {
@@ -338,28 +338,28 @@ func assertRenderedVLESSSettings(t *testing.T, data []byte) {
 		if inbound.Protocol != "vless" {
 			continue
 		}
-		if _, ok := inbound.Settings["clients"]; ok {
-			t.Fatal("vless settings includes deprecated clients key")
+		if _, ok := inbound.Settings["users"]; ok {
+			t.Fatal("vless settings includes unsupported users key")
 		}
-		rawUsers, ok := inbound.Settings["users"]
+		rawClients, ok := inbound.Settings["clients"]
 		if !ok {
-			t.Fatal("vless settings missing users key")
+			t.Fatal("vless settings missing clients key")
 		}
-		users, ok := rawUsers.([]any)
+		clients, ok := rawClients.([]any)
 		if !ok {
-			t.Fatalf("vless settings.users type = %T, want array", rawUsers)
+			t.Fatalf("vless settings.clients type = %T, want array", rawClients)
 		}
-		if len(users) != 1 {
-			t.Fatalf("len(settings.users) = %d, want 1", len(users))
+		if len(clients) != 1 {
+			t.Fatalf("len(settings.clients) = %d, want 1", len(clients))
 		}
-		user, ok := users[0].(map[string]any)
+		client, ok := clients[0].(map[string]any)
 		if !ok {
-			t.Fatalf("settings.users[0] type = %T, want object", users[0])
+			t.Fatalf("settings.clients[0] type = %T, want object", clients[0])
 		}
-		assertRawSetting(t, user, "id", "11111111-1111-4111-8111-111111111111")
-		assertRawSetting(t, user, "email", "user-1@panel.local")
-		assertRawSetting(t, user, "flow", "xtls-rprx-vision")
-		assertRawSetting(t, user, "level", float64(0))
+		assertRawSetting(t, client, "id", "11111111-1111-4111-8111-111111111111")
+		assertRawSetting(t, client, "email", "user-1@panel.local")
+		assertRawSetting(t, client, "flow", "xtls-rprx-vision")
+		assertRawSetting(t, client, "level", float64(0))
 		assertRawSetting(t, inbound.Settings, "decryption", "none")
 		return
 	}
